@@ -1,0 +1,26 @@
+tasks:
+  mmmlu:
+    benchmark_type: "mmmlu"
+    dataset_name: "openai/MMMLU"
+    split: "test"
+    subsets: ["AR_XY", "DE_DE", "FR_FR"]
+    defaults:
+      batch_size: 64
+      max_new_tokens: 4
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: null
+  
+  wmt24pp:
+    benchmark_type: "wmt24pp"
+    dataset_name: "google/wmt24pp"
+    split: "train"
+    subsets: ["en-de_DE"]
+    defaults:
+      batch_size: 32
+      max_new_tokens: 8192
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: 2
+      filter_bad: true
+      src_lang: "English"
