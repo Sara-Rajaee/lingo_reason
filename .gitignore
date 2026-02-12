@@ -1,0 +1,11 @@
+*.o
+*.e
+
+# data
+*.json
+*.jsonl 
+
+# bash files and API tokens
+*.sh
+
+*.pyc

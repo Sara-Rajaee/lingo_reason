@@ -1,0 +1,12 @@
+together
+google-genai
+openai
+datasets
+pyyaml
+python-dotenv
+sacrebleu
+tqdm
+pandas
+aiohttp
+unbabel-comet
+torch
