@@ -1,6 +1,6 @@
 together_ai:
   api_key: ${TOGETHER_API_KEY}
-  timeout: 60
+  timeout: 120
   max_retries: 3
 
 gemini:

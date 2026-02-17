@@ -1,4 +1,13 @@
 models:
+  - name: "deepseek-v3"
+    provider: "together_ai"
+    model_id: "deepseek-ai/DeepSeek-V3.1"
+    default_params:
+      temperature: 0
+      max_tokens: 8192
+      top_p: 1
+      reasoning: true
+
   - name: "deepseek-r1"
     provider: "together_ai"
     model_id: "deepseek-ai/DeepSeek-R1"
@@ -6,8 +15,8 @@ models:
       temperature: 0
       max_tokens: 8192
       top_p: 1
-      reasoning: True
-  
+      reasoning: true
+
   - name: "gemini-2.0-flash"
     provider: "gemini"
     model_id: "gemini-2.0-flash-exp"

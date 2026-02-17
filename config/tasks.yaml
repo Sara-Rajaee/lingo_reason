@@ -15,12 +15,12 @@ tasks:
     benchmark_type: "wmt24pp"
     dataset_name: "google/wmt24pp"
     split: "train"
-    subsets: ["en-de_DE"]
+    subsets: ["en-cs_CZ"]
     defaults:
-      batch_size: 32
+      batch_size: 128
       max_new_tokens: 8192
       temperature: 0.0
       top_p: 1.0
-      limit_per_subset: 2
-      filter_bad: true
+      limit_per_subset: 12
+      filter_bad: false
       src_lang: "English"
