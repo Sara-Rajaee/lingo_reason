@@ -21,6 +21,6 @@ tasks:
       max_new_tokens: 8192
       temperature: 0.0
       top_p: 1.0
-      limit_per_subset: 12
+      limit_per_subset: 1
       filter_bad: false
       src_lang: "English"

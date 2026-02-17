@@ -6,7 +6,7 @@ models:
       temperature: 0
       max_tokens: 8192
       top_p: 1
-      reasoning: true
+      reasoning: True
 
   - name: "deepseek-r1"
     provider: "together_ai"
@@ -15,7 +15,7 @@ models:
       temperature: 0
       max_tokens: 8192
       top_p: 1
-      reasoning: true
+      reasoning: True
 
   - name: "gemini-2.0-flash"
     provider: "gemini"
