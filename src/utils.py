@@ -45,16 +45,16 @@ def save_results(results, output_dir, model_name, task_name, subset, reasoning_m
         'timestamp': datetime.now().isoformat(),
         'generation_params': results.get('generation_params', {})
     }
-    with open(os.path.join(result_path, 'metadata.json'), 'w') as f:
-        json.dump(metadata, f, indent=2)
+    with open(os.path.join(result_path, 'metadata.json'), 'w', encoding="utf-8") as f:
+        json.dump(metadata, f, ensure_ascii=False, indent=2)
     
     # Save metrics
-    with open(os.path.join(result_path, 'metrics.json'), 'w') as f:
-        json.dump(results['metrics'], f, indent=2)
+    with open(os.path.join(result_path, 'metrics.json'), 'w', encoding="utf-8") as f:
+        json.dump(results['metrics'], f, ensure_ascii=False, indent=2)
     
     # Save raw outputs
-    with open(os.path.join(result_path, 'raw_outputs.json'), 'w') as f:
-        json.dump(results['raw_outputs'], f, indent=2)
+    with open(os.path.join(result_path, 'raw_outputs.json'), 'w', encoding="utf-8") as f:
+        json.dump(results['raw_outputs'], f, ensure_ascii=False, indent=2)
     
     print(f"Results saved to {result_path}")
 
