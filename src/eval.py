@@ -104,7 +104,11 @@ class Evaluator:
             raw_outputs.append(result)
         
         # Sort raw_outputs by ID to maintain consistent order
-        raw_outputs.sort(key=lambda x: x['id'])
+        def extract_numeric_id(output):
+            id_parts = output['id'].rsplit('_', 1)
+            return int(id_parts[-1]) if len(id_parts) > 1 else 0
+
+        raw_outputs.sort(key=extract_numeric_id)
         
         # Extract predictions and references for evaluation
         # Use 'generation' (without reasoning tokens) for evaluation
@@ -121,9 +125,9 @@ class Evaluator:
             # Add scores to each raw output (now they're aligned by index)
             for i, output in enumerate(raw_outputs):
                 output['scores'] = {
-                    'xcomet-xl': per_example_scores['xcomet'][i] if 'xcomet' in per_example_scores else None,
+                    'xcomet-xl': per_example_scores['xcomet-xl'][i] if 'xcomet-xl' in per_example_scores else None,
                     'bleu': per_example_scores['bleu'][i] if 'bleu' in per_example_scores else None,
-                    'chrf': per_example_scores['chrf'][i] if 'chrf' in per_example_scores else None
+                    'chrfpp': per_example_scores['chrfpp'][i] if 'chrfpp' in per_example_scores else None
                 }
         
         return {
