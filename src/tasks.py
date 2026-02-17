@@ -171,12 +171,10 @@ REGION_BY_CODE = {
     "zu_ZA": "South Africa",
 }
 
-WMT24PP_PROMPT = """You are a professional {src_lang} to {tgt_lang} translator, tasked with providing translations suitable for use in
-{tgt_region} ({tgt_code}). Your goal is to accurately convey the meaning and nuances of the original {src_lang}
-text while adhering to {tgt_lang} grammar, vocabulary, and cultural sensitivities.
-Please translate the following {src_lang} text into {tgt_lang} ({tgt_code}):
-{input_text}
-Produce only the {tgt_lang} translation, without any additional explanations or commentary."""
+WMT24PP_PROMPT = """You are a professional {src_lang} to {tgt_lang} translator, tasked with providing translations suitable for use in {tgt_lang} ({tgt_region}). Your goal is to accurately convey the meaning and nuances of the original {src_lang} text while adhering to {tgt_lang} grammar, vocabulary, and cultural sensitivities.
+Produce only the {tgt_lang} translation, without any additional explanations or commentary.
+Please translate the following {src_lang} text into {tgt_lang} ({tgt_region}):
+{input_text}"""
 
 
 @dataclass
@@ -199,14 +197,14 @@ class WMT24PPBenchmark(BaseBenchmark):
         name = self.task_config['dataset_name']
         split = self.task_config['split']
         limit = self.defaults.get('limit_per_subset')
-        filter_bad = self.defaults.get('filter_bad', True)
+        filter_bad = self.defaults.get('filter_bad', False)
         
         print(f"Loading {name} ({self.subset})...")
         ds = load_dataset(name, self.subset, split=split)
         
         if filter_bad and "is_bad_source" in ds.column_names:
             ds = ds.filter(lambda x: not x["is_bad_source"])
-        
+
         if limit:
             ds = ds.select(range(min(limit, len(ds))))
         
@@ -214,7 +212,7 @@ class WMT24PPBenchmark(BaseBenchmark):
             MTExample(f"{self.subset}_{i}", r["source"], r["target"]) 
             for i, r in enumerate(ds)
         ]
-        
+
         # Store sources for COMET
         self.sources = [ex.source for ex in examples]
         
@@ -282,29 +280,29 @@ class WMT24PPBenchmark(BaseBenchmark):
             }
             for src, pred, ref in zip(self.sources, predictions, references)
         ]
-        
-        # Get COMET scores (per-example scores)
-        model_output = comet_model.predict(data, batch_size=8, gpus=1)
-        
-        # COMET returns scores and optionally system score
-        if isinstance(model_output, dict):
-            comet_scores = model_output['scores']
-            comet_system_score = model_output.get('system_score', sum(comet_scores) / len(comet_scores))
+        out = comet_model.predict(data, batch_size=64, gpus=1)
+        # Extract per-example scores robustly, but ALWAYS aggregate as mean(scores)
+        if hasattr(out, "scores"):
+            comet_scores = [float(s) for s in out.scores]
+        elif isinstance(out, dict) and "scores" in out:
+            comet_scores = [float(s) for s in out["scores"]]
         else:
-            comet_scores = model_output
-            comet_system_score = sum(comet_scores) / len(comet_scores)
-        
-        # Return aggregate metrics and per-example scores
+            comet_scores = [float(s) for s in out]
+
+        comet_mean = sum(comet_scores) / len(comet_scores)
+        # Std (population std, consistent with your previous formula)
+        comet_var = sum((s - comet_mean) ** 2 for s in comet_scores) / len(comet_scores)
+        comet_std = comet_var ** 0.5
+
         return {
-            'xcomet-xl': comet_system_score,
-            'xcomet-xl_std': float(sum((s - comet_system_score) ** 2 for s in comet_scores) / len(comet_scores)) ** 0.5,
-            'bleu': bleu.score,
-            'chrf': chrf.score,
-            'num_predictions': len(predictions),
-            # Per-example scores for raw outputs
-            'per_example_scores': {
-                'xcomet-xl': [float(s) for s in comet_scores],  # Convert to float
-                'bleu': per_example_bleu,
-                'chrf': per_example_chrf
-            }
+            "xcomet-xl": comet_mean,         
+            "xcomet-xl_std": comet_std,
+            "bleu": bleu.score,
+            "chrfpp": chrf.score,
+            "num_predictions": len(predictions),
+            "per_example_scores": {
+                "xcomet-xl": comet_scores,
+                "bleu": per_example_bleu,
+                "chrfpp": per_example_chrf,
+            },
         }

@@ -188,8 +188,8 @@ async def main():
             if args.concurrency:
                 concurrency = args.concurrency
             else:
-                concurrency = task_config['defaults'].get('batch_size', 5)
-            
+                concurrency = task_config['defaults'].get('batch_size', 5) 
+
             # Run evaluation on all subsets
             results = await evaluate_task(
                 model, 

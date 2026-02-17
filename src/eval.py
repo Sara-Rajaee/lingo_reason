@@ -3,31 +3,24 @@ from tqdm.asyncio import tqdm
 import json
 
 class Evaluator:
-    def __init__(self, provider, model_config, benchmark, concurrency=5, reasoning_mode=None):
+    def __init__(self, provider, model_config, benchmark, concurrency=5):
         self.provider = provider
         self.model_config = model_config
         self.benchmark = benchmark
         self.concurrency = concurrency
         
         # Determine reasoning configuration
-        model_has_reasoning = model_config.get('reasoning', False)
-        model_reasoning_effort = model_config.get('reasoning_effort')
+        model_has_reasoning = model_config['default_params'].get('reasoning', False)
+        model_reasoning_effort = model_config['default_params'].get('reasoning_effort', None)
         
-        if reasoning_mode is True:
-            if model_has_reasoning:
+        if model_has_reasoning is True:
                 self.reasoning_effort = model_reasoning_effort
-                self.reasoning_enabled = True
-            else:
-                print(f"Warning: Model does not support reasoning effort level!")
-                self.reasoning_effort = None
-                self.reasoning_enabled = True
-        elif reasoning_mode is False:
+                self.reasoning = True
+        elif model_has_reasoning is False:
             print(f"Warning: Model does not support reasoning. Continuing without reasoning.")
             self.reasoning_effort = None
-            self.reasoning_enabled = False
-        else:
-            self.reasoning_enabled = model_has_reasoning
-            self.reasoning_effort = model_reasoning_effort if model_has_reasoning else None
+            self.reasoning = False
+
     
     async def evaluate_single(self, example, semaphore, generation_params):
         """Evaluate a single example with concurrency control"""
@@ -75,7 +68,7 @@ class Evaluator:
         )
         
         # Display reasoning status
-        if self.reasoning_enabled:
+        if self.reasoning:
             if self.reasoning_effort:
                 reasoning_status = f"ON (effort={self.reasoning_effort})"
             else:
@@ -134,6 +127,6 @@ class Evaluator:
             'metrics': metrics,
             'raw_outputs': raw_outputs,
             'generation_params': generation_params,
-            'reasoning_enabled': self.reasoning_enabled,
-            'reasoning_effort': self.reasoning_effort
+            'reasoning': self.reasoning,
+
         }

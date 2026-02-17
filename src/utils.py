@@ -21,7 +21,7 @@ def load_config(config_path):
 def save_results(results, output_dir, model_name, task_name, subset, reasoning_mode=None):
     """Save evaluation results"""
     # Create directory structure based on reasoning mode
-    reasoning_enabled = results.get('reasoning_enabled', False)
+    reasoning_enabled = results.get('reasoning', False)
     reasoning_effort = results.get('reasoning_effort')
     
     if reasoning_enabled:
