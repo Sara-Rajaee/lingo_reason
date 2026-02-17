@@ -9,3 +9,7 @@
 *.sh
 
 *.pyc
+
+#playground files
+tmp.py
+comet_eval.py
