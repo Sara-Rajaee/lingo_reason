@@ -65,10 +65,21 @@ class MMMLUExample:
 def extract_choice(text):
     """Extract A/B/C/D choice from model output"""
     for c in text.strip():
-        if c in "ABCD":
+        if c in "ABCDabcd":
             return c
     return ""
 
+# def extract_choice(text):
+#     pred = parse(
+#             text, 
+#             extraction_config=[
+#                 LatexExtractionConfig(
+#                     boxed_match_priority=0, 
+#                     try_extract_without_anchor=True,
+#                 ),
+#             ]
+#         )
+#     return
 
 class MMMLUBenchmark(BaseBenchmark):
     """MMMLU (Massive Multitask Multilingual Language Understanding) benchmark"""
@@ -105,9 +116,9 @@ class MMMLUBenchmark(BaseBenchmark):
     def prepare_prompt(self, example):
         """Prepare MMMLU prompt"""
         return (
-            "Answer with A, B, C, or D only.\n\n"
+            "The following is a multi-choice question. Answer with only the letter (A, B, C, or D). Do not include explanations in your final answer.\n\n"
             f"{example.question}\n"
-            f"A) {example.A}\nB) {example.B}\nC) {example.C}\nD) {example.D}\n\nAnswer:"
+            f"A) {example.A}\nB) {example.B}\nC) {example.C}\nD) {example.D}\n\n"
         )
     
     def evaluate(self, predictions, references):

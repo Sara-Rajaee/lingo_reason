@@ -3,13 +3,13 @@ tasks:
     benchmark_type: "mmmlu"
     dataset_name: "openai/MMMLU"
     split: "test"
-    subsets: ["AR_XY", "DE_DE", "FR_FR"]
+    subsets: ["FR_FR"]
     defaults:
       batch_size: 64
       max_new_tokens: 4
       temperature: 0.0
       top_p: 1.0
-      limit_per_subset: null
+      limit_per_subset: 12
   
   wmt24pp:
     benchmark_type: "wmt24pp"

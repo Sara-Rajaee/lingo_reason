@@ -46,6 +46,13 @@ class Evaluator:
             
             # Get source text if available (for MT tasks)
             source_text = example.source if hasattr(example, 'source') else None
+
+            if hasattr(example, 'source'):
+                source_text = example.source
+            elif hasattr(example, 'question'):
+                source_text = example.question + f"A) {example.A}\nB) {example.B}\nC) {example.C}\nD) {example.D}\n\n"
+            else:
+                source_text = None
             
             return {
                 'id': example.id,
