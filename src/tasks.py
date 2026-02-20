@@ -3,6 +3,9 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 import sacrebleu
 from comet import download_model, load_from_checkpoint
+from math_verify import parse, StringExtractionConfig, LatexExtractionConfig, verify
+
+
 # ---------- Base Classes ----------
 
 class BaseBenchmark(ABC):
@@ -44,6 +47,8 @@ class BenchmarkFactory:
             return MMMLUBenchmark(task_config, subset)
         elif benchmark_type == 'wmt24pp':
             return WMT24PPBenchmark(task_config, subset)
+        elif benchmark_type == 'polymath':
+            return PolyMathBenchmark(task_config, subset)
         else:
             raise ValueError(f"Unknown benchmark: {benchmark_type}")
 
@@ -69,17 +74,6 @@ def extract_choice(text):
             return c
     return ""
 
-# def extract_choice(text):
-#     pred = parse(
-#             text, 
-#             extraction_config=[
-#                 LatexExtractionConfig(
-#                     boxed_match_priority=0, 
-#                     try_extract_without_anchor=True,
-#                 ),
-#             ]
-#         )
-#     return
 
 class MMMLUBenchmark(BaseBenchmark):
     """MMMLU (Massive Multitask Multilingual Language Understanding) benchmark"""
@@ -100,13 +94,13 @@ class MMMLUBenchmark(BaseBenchmark):
         for i, r in enumerate(ds):
             examples.append(MMMLUExample(
                 id=f"{self.subset}_{i}",
-                question=r["Question"],
-                A=r["A"], 
-                B=r["B"], 
-                C=r["C"], 
-                D=r["D"],
-                answer=r["Answer"],
-                subject=r["Subject"],
+                question=r["question"],
+                A=r["option_a"], 
+                B=r["option_b"], 
+                C=r["option_c"], 
+                D=r["option_d"],
+                answer=r["answer"],
+                subject=r["subject"],
             ))
         
         self.dataset = examples
@@ -131,6 +125,102 @@ class MMMLUBenchmark(BaseBenchmark):
         for pred, ref in zip(extracted_predictions, references):
             if pred == ref:
                 correct += 1
+
+        accuracy = (correct / total * 100) if total > 0 else 0
+        
+        return {
+            'accuracy': accuracy,
+            'correct': correct,
+            'total': total,
+        }
+
+# ---------- PolyMath ----------
+
+poly_math_instruction = {
+    'en': 'Note: Please put the final answer in the $\\boxed{{}}$',
+    'zh': '注意：请将最终答案放在 $\\boxed{{}}$ 中。',
+    'ar': '.$\\boxed{{}}$ مالحظة: يُرجى وضع اإلجابة النهائية في',
+    'bn': 'ব িঃদ্রিঃ: অনুগ্রহ করে চূ ড়ান্ত উত্তেটি $\\boxed{{}}$ এে মরযে ে়াখুন।.',
+    'de': 'Hinweis: Bitte setzen Sie die endgültige Antwort in $\\boxed{{}}$.',
+    'es': 'Nota: Por favor, coloque la respuesta final en el $\\boxed{{}}$.',
+    'fr': 'Remarque : Veuillez mettre la réponse finale dans le $\\boxed{{}}$.',
+    'id': 'Catatan: Silakan letakkan jawaban akhir di dalam $\\boxed{{}}$.',
+    'it': 'Nota: Per favore, metti la risposta finale nel $\\boxed{{}}$.',
+    'ja': '注意：最終的な答えを $\\boxed{{}}$ に入れてください。',
+    'ko': '참고: 최종 답안을 $\\boxed{{}}$ 안에 넣어 주세요.',
+    'ms': 'Nota: Sila letakkan jawapan akhir dalam $\\boxed{{}}$.',
+    'pt': 'Nota: Por favor, coloque a resposta final no $\\boxed{{}}$.',
+    'ru': 'Примечание: Пожалуйста, поместите окончательный ответ в $\\boxed{{}}$.',
+    'sw': 'Kumbuka: Tafadhali weka jibu la mwisho katika $\\boxed{{}}$.',
+    'te': 'గమనిక: దయచేసి తుది జవాబును $\\boxed{{}}$ లో ఉంచండి.',
+    'th': 'หมายเหตุ: กรุณาใส่ค าตอบสุดท้ายใน $\\boxed{{}}$.',
+    'vi': 'Lưu ý: Vui lòng đặt câu trả lời cuối cùng trong $\\boxed{{}}$.'
+}
+
+@dataclass
+class PolyMathExample:
+    id: str
+    question: str
+    answer: str
+
+
+def extract_boxed_answer(text):
+    """Extract answer within the \\boxed{{}}"""
+    return parse(
+            text, 
+            extraction_config=[
+                LatexExtractionConfig(
+                    boxed_match_priority=0, 
+                    try_extract_without_anchor=True,
+                ),
+            ]
+        )
+
+
+class PolyMathBenchmark(BaseBenchmark):
+    """PolyMath: Evaluating Mathematical Reasoning in Multilingual Contexts"""
+    
+    def load_data(self):
+        """Load polymath dataset for specific subset"""
+        name = self.task_config['dataset_name']
+        split = self.task_config['split']
+        limit = self.defaults.get('limit_per_subset')
+        
+        print(f"Loading {name} ({self.subset})...")
+        ds = load_dataset(name, self.subset, split=split)
+        
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+        
+        examples = []
+        for i, r in enumerate(ds):
+            examples.append(PolyMathExample(
+                id=f"{self.subset}_{i}",
+                question=r["question"],
+                answer=r["answer"],
+            ))
+        
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+    
+    def prepare_prompt(self, example):
+        """Prepare PolyMath prompt"""
+        return (
+            f"{example.question}\n"
+            f"{poly_math_instruction[self.subset]}\n\n"
+        )
+    
+    def evaluate(self, predictions, references):
+        """Evaluate MMMLU predictions"""
+        correct = 0
+        total = len(predictions)
+        
+        extracted_predictions = [extract_boxed_answer(pred) for pred in predictions]
+        for pred, ref in zip(extracted_predictions, references):
+            if verify(ref, pred):
+                correct += 1
+        
         
         accuracy = (correct / total * 100) if total > 0 else 0
         

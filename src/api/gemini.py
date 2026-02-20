@@ -11,7 +11,7 @@ class GeminiProvider(BaseProvider):
         super().__init__(config)
         self.client = genai.Client(api_key=config['api_key'])
     
-    async def generate(self, model_id, prompt, params):
+    async def generate(self, model_id, prompt, params, reasoning_effort=None, thinking_budget=0):
         """Generate completion using Gemini asynchronously"""
         
         async def _generate():
@@ -23,12 +23,32 @@ class GeminiProvider(BaseProvider):
                     model=model_id,
                     contents=prompt,
                     config=types.GenerateContentConfig(
-                        temperature=params.get('temperature', 0.7),
+                        temperature=params.get('temperature', 0),
                         max_output_tokens=params.get('max_tokens', 512),
-                        top_p=params.get('top_p', 0.9),
+                        top_p=params.get('top_p', 1),
+                        thinking_config=types.ThinkingConfig(thinking_budget=thinking_budget, 
+                                                            include_thoughts=True)
+                        # Turn off thinking:
+                        # thinking_config=types.ThinkingConfig(thinking_budget=0)
+                        # Turn on dynamic thinking:
+                        # thinking_config=types.ThinkingConfig(thinking_budget=-1)
                     )
                 )
-                return response.text
+                reasoning, generation = None, None
+                for part in response.candidates[0].content.parts:
+                    if not part.text:
+                        continue
+                    if part.thought:
+                        reasoning = part.text
+                    else:
+                        generation = part.text
+
+                # exit()
+                return {
+                    'reasoning': reasoning,
+                    'generation': generation,
+                    'raw_generation': None
+                }
             
             return await loop.run_in_executor(None, _sync_generate)
         

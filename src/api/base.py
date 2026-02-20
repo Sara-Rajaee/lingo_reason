@@ -32,6 +32,6 @@ class BaseProvider(ABC):
             except Exception as e:
                 if attempt == self.max_retries - 1:
                     raise
-                wait_time = 2 ** attempt
+                wait_time = 2 ** attempt * 0.1
                 print(f"Retry {attempt + 1}/{self.max_retries} after {wait_time}s due to: {e}")
                 await asyncio.sleep(wait_time)

@@ -30,7 +30,7 @@ class TogetherAIProvider(BaseProvider):
         # No reasoning found
         return None, text.strip()
 
-    async def generate(self, model_id, prompt, params, reasoning_effort):
+    async def generate(self, model_id, prompt, params, reasoning_effort, thinking_budget=None):
         """Generate completion using TogetherAI asynchronously"""
         
         async def _generate():

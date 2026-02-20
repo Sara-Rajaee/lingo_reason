@@ -27,13 +27,13 @@ class Evaluator:
         async with semaphore:
             # Prepare prompt
             prompt = self.benchmark.prepare_prompt(example)
-            
             # Generate prediction with reasoning configuration
             output = await self.provider.generate(
                 model_id=self.model_config['model_id'],
                 prompt=prompt,
                 params=generation_params,
-                reasoning_effort=self.reasoning_effort
+                reasoning_effort=self.reasoning_effort,
+                thinking_budget=self.model_config['default_params'].get('thinking_budget', 0) # setting to 0 for disabling reasoning 
             )
             
             # Get reference based on benchmark type
@@ -47,10 +47,12 @@ class Evaluator:
             # Get source text if available (for MT tasks)
             source_text = example.source if hasattr(example, 'source') else None
 
-            if hasattr(example, 'source'):
+            if hasattr(example, 'source'): #mt
                 source_text = example.source
-            elif hasattr(example, 'question'):
+            elif hasattr(example, 'question') and hasattr(example, 'A'): #mmlu
                 source_text = example.question + f"A) {example.A}\nB) {example.B}\nC) {example.C}\nD) {example.D}\n\n"
+            elif hasattr(example, 'question'): #polymath
+                source_text = example.question 
             else:
                 source_text = None
             
@@ -90,13 +92,12 @@ class Evaluator:
         
         # Create semaphore for concurrency control
         semaphore = asyncio.Semaphore(self.concurrency)
-        
         # Create tasks for all examples
         tasks = [
             self.evaluate_single(example, semaphore, generation_params)
             for example in dataset
         ]
-        
+     
         # Run all tasks with progress bar
         raw_outputs = []
         for coro in tqdm.as_completed(tasks, total=len(tasks), desc="Evaluating"):

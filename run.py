@@ -12,7 +12,7 @@ from src.tasks import BenchmarkFactory
 from src.eval import Evaluator
 from src.utils import load_config, save_results, get_output_dir
 
-async def evaluate_task_subset(model, provider_config, task_name, task_config, subset, concurrency=5):
+async def evaluate_task_subset(model, provider_config, task_name, task_config, subset, concurrency=1):
     """Evaluate a single model on a task subset"""
     # Initialize provider
     provider = ProviderFactory.get_provider(model['provider'], provider_config)
@@ -23,9 +23,8 @@ async def evaluate_task_subset(model, provider_config, task_name, task_config, s
         task_config,
         subset
     )
-    
     # Run evaluation
-    evaluator = Evaluator(provider, model, benchmark, concurrency=concurrency)
+    evaluator = Evaluator(provider, model, benchmark, concurrency=5)
     results = await evaluator.run()
     
     # Save results
