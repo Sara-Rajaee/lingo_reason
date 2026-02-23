@@ -130,6 +130,13 @@ class Evaluator:
                     'bleu': per_example_scores['bleu'][i] if 'bleu' in per_example_scores else None,
                     'chrfpp': per_example_scores['chrfpp'][i] if 'chrfpp' in per_example_scores else None
                 }
+        elif 'per_example_accuracy' in metrics.keys():
+            per_example_scores = metrics.pop('per_example_accuracy')
+            # Add scores to each raw output (now they're aligned by index)
+            for i, output in enumerate(raw_outputs):
+                output['scores'] = {
+                    'accuracy': per_example_scores[i]
+                }
         
         return {
             'metrics': metrics,

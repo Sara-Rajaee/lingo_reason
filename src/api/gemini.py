@@ -27,7 +27,8 @@ class GeminiProvider(BaseProvider):
                         max_output_tokens=params.get('max_tokens', 512),
                         top_p=params.get('top_p', 1),
                         thinking_config=types.ThinkingConfig(thinking_budget=thinking_budget, 
-                                                            include_thoughts=True)
+                                                            include_thoughts=True),
+                        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
                         # Turn off thinking:
                         # thinking_config=types.ThinkingConfig(thinking_budget=0)
                         # Turn on dynamic thinking:

@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import sacrebleu
 from comet import download_model, load_from_checkpoint
 from math_verify import parse, StringExtractionConfig, LatexExtractionConfig, verify
-
+import re
 
 # ---------- Base Classes ----------
 
@@ -163,11 +163,39 @@ class PolyMathExample:
     question: str
     answer: str
 
+def normalize_latex(text):
+    """Normalize common LaTeX formatting issues before parsing"""
+    
+    # Unwrap font/text commands: \text{x} -> x
+    for cmd in [r'\\text', r'\\mathrm', r'\\mathbf', r'\\mathit', r'\\mathsf', r'\\mbox']:
+        text = re.sub(cmd + r'\{([^}]+)\}', r'\1', text)
+    
+    # Remove \displaystyle
+    text = re.sub(r'\\displaystyle\s*', '', text)
+    
+    # Remove currency symbols inside \boxed{}: \boxed{$28} -> \boxed{28}
+    text = re.sub(r'(\\boxed\{)[\\]?\$\s*', r'\1', text)
+    
+    # Remove % symbol inside \boxed{}: \boxed{60%} -> \boxed{60}
+    text = re.sub(r'(\\boxed\{[^}]*?)%(\})', r'\1\2', text)
+    
+    # Remove thousand separators inside \boxed{}: \boxed{28,000} -> \boxed{28000}
+    text = re.sub(r'(\\boxed\{[^}]*?)(\d),(\d)', r'\1\2\3', text)
+    # Apply multiple times to handle numbers like 1,000,000
+    text = re.sub(r'(\\boxed\{[^}]*?)(\d),(\d)', r'\1\2\3', text)
+    
+    # Remove trailing .0+ inside \boxed{}: \boxed{28.00} -> \boxed{28}
+    text = re.sub(r'(\\boxed\{-?\d+)\.0+(\})', r'\1\2', text)
+    
+    return text
+
 
 def extract_boxed_answer(text):
     """Extract answer within the \\boxed{{}}"""
+    normalized = normalize_latex(text)
+
     return parse(
-            text, 
+            normalized, 
             extraction_config=[
                 LatexExtractionConfig(
                     boxed_match_priority=0, 
@@ -217,9 +245,13 @@ class PolyMathBenchmark(BaseBenchmark):
         total = len(predictions)
         
         extracted_predictions = [extract_boxed_answer(pred) for pred in predictions]
+        scores = []
         for pred, ref in zip(extracted_predictions, references):
             if verify(ref, pred):
                 correct += 1
+                scores.append(1)
+            else:
+                scores.append(0)
         
         
         accuracy = (correct / total * 100) if total > 0 else 0
@@ -228,6 +260,7 @@ class PolyMathBenchmark(BaseBenchmark):
             'accuracy': accuracy,
             'correct': correct,
             'total': total,
+            'per_example_accuracy': scores
         }
 
 # ---------- WMT24++ ----------

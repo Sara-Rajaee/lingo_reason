@@ -18,7 +18,7 @@ def load_config(config_path):
     
     return yaml.safe_load(content)
 
-def save_results(results, output_dir, model_name, task_name, subset, reasoning_mode=None):
+def save_results(results, output_dir, model_name, task_name, subset, split, reasoning_mode=None):
     """Save evaluation results"""
     # Create directory structure based on reasoning mode
     reasoning_enabled = results.get('reasoning', False)
@@ -40,6 +40,7 @@ def save_results(results, output_dir, model_name, task_name, subset, reasoning_m
         'model': model_name,
         'task': task_name,
         'subset': subset,
+        'split': split,
         'reasoning_enabled': reasoning_enabled,
         'reasoning_effort': reasoning_effort,
         'timestamp': datetime.now().isoformat(),
