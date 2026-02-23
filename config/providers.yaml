@@ -5,10 +5,10 @@ together_ai:
 
 gemini:
   api_key: ${GEMINI_API_KEY}
-  timeout: 60
+  timeout: 600
   max_retries: 3
 
 openai:
   api_key: ${OPENAI_API_KEY}
-  timeout: 60
+  timeout: 600
   max_retries: 3
