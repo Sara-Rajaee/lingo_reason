@@ -1,6 +1,6 @@
 # Linguistic Reasoning
 
-A framework for evaluating language models on linguistic reasoning tasks.
+A framework for evaluating language models on different tasks.
 
 ## Requirements
 
@@ -11,7 +11,7 @@ A framework for evaluating language models on linguistic reasoning tasks.
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/your-repo.git
+   git clone https://github.com/Sara-Rajaee/lingo_reason
    cd your-repo
    ```
 
