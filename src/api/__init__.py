@@ -1,12 +1,14 @@
-from .together import TogetherAIProvider
-from .gemini import GeminiProvider
-from .openai import OpenAIProvider
+from .together_provider import TogetherAIProvider
+from .gemini_provider import GeminiProvider
+from .openai_provider import OpenAIProvider
+from .cohere_provider import CohereAPIProvider
 
 class ProviderFactory:
     _providers = {
         'together_ai': TogetherAIProvider,
         'gemini': GeminiProvider,
         'openai': OpenAIProvider,
+        'cohere': CohereAPIProvider
     }
     
     @staticmethod
