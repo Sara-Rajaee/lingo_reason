@@ -1,6 +1,7 @@
 from datasets import load_dataset
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
+from typing import List
 import sacrebleu
 from comet import download_model, load_from_checkpoint
 from math_verify import parse, StringExtractionConfig, LatexExtractionConfig, verify
@@ -49,6 +50,8 @@ class BenchmarkFactory:
             return WMT24PPBenchmark(task_config, subset)
         elif benchmark_type == 'polymath':
             return PolyMathBenchmark(task_config, subset)
+        elif benchmark_type == 'linguini':
+            return LinguiniBenchmark(task_config, subset)
         else:
             raise ValueError(f"Unknown benchmark: {benchmark_type}")
 
@@ -121,10 +124,13 @@ class MMMLUBenchmark(BaseBenchmark):
         total = len(predictions)
         
         extracted_predictions = [extract_choice(pred) for pred in predictions]
-        
+        scores = []
         for pred, ref in zip(extracted_predictions, references):
             if pred == ref:
                 correct += 1
+                scores.append(1)
+            else:
+                scores.append(0)
 
         accuracy = (correct / total * 100) if total > 0 else 0
         
@@ -132,6 +138,7 @@ class MMMLUBenchmark(BaseBenchmark):
             'accuracy': accuracy,
             'correct': correct,
             'total': total,
+            'per_example_accuracy': scores,
         }
 
 # ---------- PolyMath ----------
@@ -164,29 +171,32 @@ class PolyMathExample:
     answer: str
 
 def normalize_latex(text):
-    """Normalize common LaTeX formatting issues before parsing"""
-    
     # Unwrap font/text commands: \text{x} -> x
     for cmd in [r'\\text', r'\\mathrm', r'\\mathbf', r'\\mathit', r'\\mathsf', r'\\mbox']:
         text = re.sub(cmd + r'\{([^}]+)\}', r'\1', text)
-    
+
     # Remove \displaystyle
     text = re.sub(r'\\displaystyle\s*', '', text)
-    
-    # Remove currency symbols inside \boxed{}: \boxed{$28} -> \boxed{28}
+
+    # Remove currency symbols inside \boxed{}
     text = re.sub(r'(\\boxed\{)[\\]?\$\s*', r'\1', text)
-    
-    # Remove % symbol inside \boxed{}: \boxed{60%} -> \boxed{60}
+
+    # Remove % symbol inside \boxed{}
     text = re.sub(r'(\\boxed\{[^}]*?)%(\})', r'\1\2', text)
-    
-    # Remove thousand separators inside \boxed{}: \boxed{28,000} -> \boxed{28000}
-    text = re.sub(r'(\\boxed\{[^}]*?)(\d),(\d)', r'\1\2\3', text)
-    # Apply multiple times to handle numbers like 1,000,000
-    text = re.sub(r'(\\boxed\{[^}]*?)(\d),(\d)', r'\1\2\3', text)
-    
+
+    # Remove thousand separators globally: 70,000 -> 70000
+    for _ in range(3):
+        text = re.sub(r'(\d),(\d{3})', r'\1\2', text)
+
     # Remove trailing .0+ inside \boxed{}: \boxed{28.00} -> \boxed{28}
     text = re.sub(r'(\\boxed\{-?\d+)\.0+(\})', r'\1\2', text)
-    
+
+    # Remove trailing unit text inside \boxed{}: \boxed{230 মাইল} -> \boxed{230}
+    text = re.sub(r'(\\boxed\{-?[\d.]+)\s+[^}]+(\})', r'\1\2', text)
+
+    # Normalize double braces to single: \boxed{{x}} -> \boxed{x}
+    text = re.sub(r'\\boxed\{\{([^{}]+)\}\}', r'\\boxed{\1}', text)
+
     return text
 
 
@@ -261,6 +271,128 @@ class PolyMathBenchmark(BaseBenchmark):
             'correct': correct,
             'total': total,
             'per_example_accuracy': scores
+        }
+
+# ---------- Linguini ----------
+
+@dataclass
+class LinguiniExample:
+    id: str
+    context: str          # The linguistic puzzle context (word pairs, etc.)
+    question: str         # Individual question text
+    answer: str           # Gold answer (exact match target)
+    task_type: str        # e.g. "translation", "match_letter", "fill_blanks"
+    task_lang: str         # The low-resource language being tested
+    problem_id: str       # Parent problem ID (multiple questions share one problem)
+    eval_type: str
+
+
+class LinguiniBenchmark(BaseBenchmark):
+    """Linguini benchmark for language-agnostic linguistic reasoning.
+
+    Based on International Linguistic Olympiad (IOL) problems.
+    Each 'problem' contains a context (word pairs in an unknown language)
+    and multiple questions requiring deductive linguistic reasoning.
+    Evaluated via exact match across 894 questions / 160 problems.
+
+    HuggingFace dataset: facebook/linguini
+    - Single config: 'default'
+    - Single split: 'test'
+    - 160 rows (one per problem); each row contains a list of questions+answers.
+    """
+
+    def load_data(self):
+        name = self.task_config['dataset_name']       # "facebook/linguini"
+        split = self.task_config.get('split', 'test')
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        # Linguini has a single config ('default') and a single split ('test').
+        # self.subset is expected to be 'default' when running this benchmark.
+        ds = load_dataset(name, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for problem in ds:
+            # Each row is a full problem with (potentially) multiple questions.
+            # Field names below reflect the most likely schema; adjust if needed.
+            problem_id   = str(problem.get('problem_id', problem.get('id', '')))
+            context      = problem.get('context', problem.get('context', ''))
+            task_type    = problem.get('task_type', problem.get('task_type', 'unknown'))
+            task_lang    = problem.get('task_lang', problem.get('task_lang', 'unknown'))
+
+            # Questions and answers are stored as parallel lists inside each row.
+            query = problem.get('query', [])
+            answers   = problem.get('answers', [])
+
+        
+            examples.append(LinguiniExample(
+                id=f"{problem_id}_q{q_idx}",
+                context=context,
+                question=q,
+                answer=str(a).strip(),
+                task_type=task_type,
+                task_lang=task_lang,
+                problem_id=problem_id,
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} question instances from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example: LinguiniExample) -> str:
+        """Build a zero-shot prompt for a Linguini linguistic reasoning question.
+
+        The context contains the key information needed to solve the puzzle
+        (the model should NOT rely on prior knowledge of the language).
+        """
+        return (
+            "You are solving a linguistic puzzle. "
+            "All the information you need is contained in the context below — "
+            "no prior knowledge of this language is required.\n\n"
+            f"Context:\n{example.context}\n\n"
+            f"Question:\n{example.question}\n\n"
+            "Answer with only the requested word or phrase. "
+            "Do not include explanations in your final answer.\n\n"
+        )
+
+    def evaluate(self, predictions: List[str], references: List[str]) -> dict:
+        """Evaluate using exact match (case-insensitive) + chrF score."""
+        assert len(predictions) == len(references), (
+            f"Mismatch: {len(predictions)} predictions vs {len(references)} references"
+        )
+
+        scores = []
+        correct = 0
+        chrf_scores = []
+
+        for pred, ref in zip(predictions, references):
+            pred_norm = pred.strip().lower()
+            ref_norm  = ref.strip().lower()
+
+            # Exact match
+            match = int(pred_norm == ref_norm)
+            scores.append(match)
+            correct += match
+
+            # chrF per example (character n-gram F-score)
+            chrf_scores.append(_chrf(pred_norm, ref_norm))
+
+        total    = len(predictions)
+        accuracy = (correct / total * 100) if total > 0 else 0.0
+        chrf_avg = (sum(chrf_scores) / total * 100) if total > 0 else 0.0
+
+        return {
+            'accuracy': accuracy,
+            'chrf': chrf_avg,
+            'correct': correct,
+            'total': total,
+            "per_example_scores": {
+                "accuracy": scores,
+                "chrf": chrf_scores,
+            },
         }
 
 # ---------- WMT24++ ----------
@@ -386,54 +518,72 @@ class WMT24PPBenchmark(BaseBenchmark):
     
     def evaluate(self, predictions, references):
         """Evaluate WMT24++ predictions using xCOMET, BLEU, and chrF++"""
-        # Calculate BLEU
-        bleu = sacrebleu.corpus_bleu(predictions, [references])
-        
-        # Calculate chrF++
-        chrf = sacrebleu.corpus_chrf(predictions, [references], word_order=2)
-        
-        # Calculate per-example BLEU and chrF++
+
+        assert len(predictions) == len(references), \
+            f"Length mismatch: {len(predictions)} predictions vs {len(references)} references"
+
+        # Calculate per-example BLEU and chrF++, setting None for empty predictions
         per_example_bleu = []
         per_example_chrf = []
         for pred, ref in zip(predictions, references):
-            example_bleu = sacrebleu.sentence_bleu(pred, [ref])
-            example_chrf = sacrebleu.sentence_chrf(pred, [ref], word_order=2)
-            per_example_bleu.append(example_bleu.score)
-            per_example_chrf.append(example_chrf.score)
-        
+            if not pred or not pred.strip():
+                per_example_bleu.append(None)
+                per_example_chrf.append(None)
+            else:
+                per_example_bleu.append(sacrebleu.sentence_bleu(pred, [ref]).score)
+                per_example_chrf.append(sacrebleu.sentence_chrf(pred, [ref], word_order=2).score)
+
+        # Filter to valid examples for corpus-level metrics
+        valid = [
+            (pred, ref, src)
+            for pred, ref, src in zip(predictions, references, self.sources)
+            if pred and pred.strip()
+        ]
+
+        if len(valid) < len(predictions):
+            print(f"Warning: {len(predictions) - len(valid)} empty predictions excluded from corpus metrics")
+
+        valid_preds, valid_refs, valid_srcs = map(list, zip(*valid))
+
+        # Calculate corpus BLEU and chrF++
+        bleu = sacrebleu.corpus_bleu(valid_preds, [valid_refs])
+        chrf = sacrebleu.corpus_chrf(valid_preds, [valid_refs], word_order=2)
+
         # Calculate xCOMET score
         print("Computing xCOMET scores...")
         comet_model = self._load_comet_model()
-        
-        # Prepare data for COMET
+
         data = [
-            {
-                "src": src,
-                "mt": pred,
-                "ref": ref
-            }
-            for src, pred, ref in zip(self.sources, predictions, references)
+            {"src": src, "mt": pred, "ref": ref}
+            for src, pred, ref in zip(valid_srcs, valid_preds, valid_refs)
         ]
         out = comet_model.predict(data, batch_size=64, gpus=1)
-        # Extract per-example scores robustly, but ALWAYS aggregate as mean(scores)
-        if hasattr(out, "scores"):
-            comet_scores = [float(s) for s in out.scores]
-        elif isinstance(out, dict) and "scores" in out:
-            comet_scores = [float(s) for s in out["scores"]]
-        else:
-            comet_scores = [float(s) for s in out]
 
-        comet_mean = sum(comet_scores) / len(comet_scores)
-        # Std (population std, consistent with your previous formula)
-        comet_var = sum((s - comet_mean) ** 2 for s in comet_scores) / len(comet_scores)
+        if hasattr(out, "scores"):
+            valid_comet_scores = [float(s) for s in out.scores]
+        elif isinstance(out, dict) and "scores" in out:
+            valid_comet_scores = [float(s) for s in out["scores"]]
+        else:
+            valid_comet_scores = [float(s) for s in out]
+
+        # Re-expand comet scores to full length, None for empty predictions
+        valid_iter = iter(valid_comet_scores)
+        comet_scores = [
+            None if (not pred or not pred.strip()) else next(valid_iter)
+            for pred in predictions
+        ]
+
+        comet_mean = sum(valid_comet_scores) / len(valid_comet_scores)
+        comet_var = sum((s - comet_mean) ** 2 for s in valid_comet_scores) / len(valid_comet_scores)
         comet_std = comet_var ** 0.5
 
         return {
-            "xcomet-xl": comet_mean,         
+            "xcomet-xl": comet_mean,
             "xcomet-xl_std": comet_std,
             "bleu": bleu.score,
             "chrfpp": chrf.score,
             "num_predictions": len(predictions),
+            "num_valid_predictions": len(valid_preds),
             "per_example_scores": {
                 "xcomet-xl": comet_scores,
                 "bleu": per_example_bleu,
