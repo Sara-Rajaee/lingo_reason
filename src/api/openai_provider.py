@@ -1,5 +1,5 @@
 from openai import AsyncOpenAI
-from .base import BaseProvider
+from .base_provider import BaseProvider
 
 class OpenAIProvider(BaseProvider):
     """OpenAI API provider with async support"""
