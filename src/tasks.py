@@ -171,9 +171,12 @@ class PolyMathExample:
     answer: str
 
 def normalize_latex(text):
-    # Unwrap font/text commands: \text{x} -> x
+    # Unwrap font/text commands FIRST: \text{x} -> x
     for cmd in [r'\\text', r'\\mathrm', r'\\mathbf', r'\\mathit', r'\\mathsf', r'\\mbox']:
         text = re.sub(cmd + r'\{([^}]+)\}', r'\1', text)
+
+    # NOW normalize double braces (content is clean of \text{}): \boxed{{x}} -> \boxed{x}
+    text = re.sub(r'\\boxed\{\{([^{}]+)\}\}', r'\\boxed{\1}', text)
 
     # Remove \displaystyle
     text = re.sub(r'\\displaystyle\s*', '', text)
@@ -181,23 +184,32 @@ def normalize_latex(text):
     # Remove currency symbols inside \boxed{}
     text = re.sub(r'(\\boxed\{)[\\]?\$\s*', r'\1', text)
 
-    # Remove % symbol inside \boxed{}
-    text = re.sub(r'(\\boxed\{[^}]*?)%(\})', r'\1\2', text)
+    # Remove % and \% symbol inside \boxed{}
+    text = re.sub(r'(\\boxed\{[^}]*?)\\%(\})', r'\1\2', text)
+    text = re.sub(r'(\\boxed\{[^}]*?)(?<!\\)%(\})', r'\1\2', text)
 
-    # Remove thousand separators globally: 70,000 -> 70000
+    # Remove trailing unit text inside \boxed{} (any Unicode, with or without space)
+    text = re.sub(r'(\\boxed\{-?[\d.,]+)\s*[^}0-9.,\s][^}]*(\})', r'\1\2', text)  # ← updated line
+
+    # Remove English thousand separators globally: 70,000 -> 70000
     for _ in range(3):
         text = re.sub(r'(\d),(\d{3})', r'\1\2', text)
+
+    def normalize_european_number(m):
+        inner = m.group(1)
+        # German/European thousands separator: 57.500 -> 57500
+        inner = re.sub(r'(\d)\.(\d{3})(?!\d)', r'\1\2', inner)
+        # German decimal comma: 26,00 -> 26.00
+        inner = re.sub(r'(\d),(\d{1,2})$', r'\1.\2', inner)
+        return r'\boxed{' + inner + '}'
+
+    text = re.sub(r'\\boxed\{([^}]+)\}', normalize_european_number, text)
 
     # Remove trailing .0+ inside \boxed{}: \boxed{28.00} -> \boxed{28}
     text = re.sub(r'(\\boxed\{-?\d+)\.0+(\})', r'\1\2', text)
 
-    # Remove trailing unit text inside \boxed{}: \boxed{230 মাইল} -> \boxed{230}
-    text = re.sub(r'(\\boxed\{-?[\d.]+)\s+[^}]+(\})', r'\1\2', text)
-
-    # Normalize double braces to single: \boxed{{x}} -> \boxed{x}
-    text = re.sub(r'\\boxed\{\{([^{}]+)\}\}', r'\\boxed{\1}', text)
-
     return text
+
 
 
 def extract_boxed_answer(text):
