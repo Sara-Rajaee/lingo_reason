@@ -15,15 +15,16 @@ tasks:
     benchmark_type: "wmt24pp"
     dataset_name: "google/wmt24pp"
     split: "train"
-    subsets: ["en-de_DE", "en-ar_SA", "en-zh_CN", "en-bn_IN"]
+    subsets: ["en-de_DE"] #, "en-ar_SA", "en-zh_CN", "en-bn_IN"]
     defaults:
       batch_size: 128
       max_new_tokens: 8192
       temperature: 0.0
       top_p: 1.0
-      limit_per_subset: 998 #998
+      limit_per_subset: 1 #998
       filter_bad: false
       src_lang: "English" 
+      include_comet: true
 
   polymath:
     benchmark_type: "polymath"

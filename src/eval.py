@@ -3,11 +3,12 @@ from tqdm.asyncio import tqdm
 import json
 
 class Evaluator:
-    def __init__(self, provider, model_config, benchmark, concurrency=5):
+    def __init__(self, provider, model_config, benchmark, task_config, concurrency=5):
         self.provider = provider
         self.model_config = model_config
         self.benchmark = benchmark
         self.concurrency = concurrency
+        self.task_config = task_config
         
         # Determine reasoning configuration
         model_has_reasoning = model_config['default_params'].get('reasoning', False)
@@ -126,10 +127,13 @@ class Evaluator:
             # Add scores to each raw output (now they're aligned by index)
             for i, output in enumerate(raw_outputs):
                 output['scores'] = {
-                    'xcomet-xl': per_example_scores['xcomet-xl'][i] if 'xcomet-xl' in per_example_scores else None,
                     'bleu': per_example_scores['bleu'][i] if 'bleu' in per_example_scores else None,
                     'chrfpp': per_example_scores['chrfpp'][i] if 'chrfpp' in per_example_scores else None
                 }
+                if self.task_config['defaults']['include_comet']:
+                     output['scores'].update({
+                    'xcomet-xl': per_example_scores['xcomet-xl'][i] if 'xcomet-xl' in per_example_scores else None})
+
         elif 'per_example_accuracy' in metrics.keys():
             per_example_scores = metrics.pop('per_example_accuracy')
             # Add scores to each raw output (now they're aligned by index)

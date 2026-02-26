@@ -468,7 +468,7 @@ class WMT24PPBenchmark(BaseBenchmark):
     def __init__(self, task_config, subset):
         super().__init__(task_config, subset)
         self.comet_model = None
-        self.include_comet = task_config.get("include_comet", False)
+        self.include_comet = task_config['defaults'].get("include_comet", False)
         self.sources = []  # Store sources for COMET evaluation
     
     def load_data(self):
@@ -567,7 +567,6 @@ class WMT24PPBenchmark(BaseBenchmark):
             "chrfpp": chrf.score,
             "num_predictions": len(predictions),
             "per_example_scores": {
-                "xcomet-xl": comet_scores,
                 "bleu": per_example_bleu,
                 "chrfpp": per_example_chrf,
             },
@@ -602,5 +601,6 @@ class WMT24PPBenchmark(BaseBenchmark):
             comet_std = comet_var ** 0.5
 
             results.update({"xcomet-xl": comet_mean, "xcomet-xl_std": comet_std})
+            results["per_example_scores"].update({"xcomet-xl": comet_scores})
 
         return results
