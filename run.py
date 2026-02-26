@@ -24,7 +24,7 @@ async def evaluate_task_subset(model, provider_config, task_name, task_config, s
         subset
     )
     # Run evaluation
-    evaluator = Evaluator(provider, model, benchmark, concurrency=5)
+    evaluator = Evaluator(provider, model, benchmark, concurrency=concurrency)
     results = await evaluator.run()
     
     # Save results
