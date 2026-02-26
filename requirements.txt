@@ -13,3 +13,4 @@ aiohttp
 unbabel-comet
 torch
 math_verify
+litellm
