@@ -21,7 +21,7 @@ tasks:
       max_new_tokens: 8192
       temperature: 0.0
       top_p: 1.0
-      limit_per_subset: 1 #998
+      limit_per_subset: 998 #998
       filter_bad: false
       src_lang: "English" 
       include_comet: true
@@ -29,7 +29,7 @@ tasks:
   polymath:
     benchmark_type: "polymath"
     dataset_name: "Qwen/PolyMath"
-    split: "medium" #should be top, high, medium, or low
+    split: "low" #should be top, high, medium, or low
     subsets: ["en", "de", "ar", "zh", "bn"]
     defaults:
       batch_size: 64
