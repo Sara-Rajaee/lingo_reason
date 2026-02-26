@@ -1,8 +1,7 @@
 from google import genai
 from google.genai import types
-from .base import BaseProvider
+from .base_provider import BaseProvider
 import asyncio
-import os
 
 class GeminiProvider(BaseProvider):
     """Google Gemini API provider with new google-genai package"""

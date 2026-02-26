@@ -1,5 +1,5 @@
 from together import AsyncTogether
-from .base import BaseProvider
+from .base_provider import BaseProvider
 import re 
 
 class TogetherAIProvider(BaseProvider):

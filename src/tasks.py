@@ -468,6 +468,7 @@ class WMT24PPBenchmark(BaseBenchmark):
     def __init__(self, task_config, subset):
         super().__init__(task_config, subset)
         self.comet_model = None
+        self.include_comet = task_config.get("include_comet", False)
         self.sources = []  # Store sources for COMET evaluation
     
     def load_data(self):
@@ -561,44 +562,45 @@ class WMT24PPBenchmark(BaseBenchmark):
         bleu = sacrebleu.corpus_bleu(valid_preds, [valid_refs])
         chrf = sacrebleu.corpus_chrf(valid_preds, [valid_refs], word_order=2)
 
-        # Calculate xCOMET score
-        print("Computing xCOMET scores...")
-        comet_model = self._load_comet_model()
-
-        data = [
-            {"src": src, "mt": pred, "ref": ref}
-            for src, pred, ref in zip(valid_srcs, valid_preds, valid_refs)
-        ]
-        out = comet_model.predict(data, batch_size=64, gpus=1)
-
-        if hasattr(out, "scores"):
-            valid_comet_scores = [float(s) for s in out.scores]
-        elif isinstance(out, dict) and "scores" in out:
-            valid_comet_scores = [float(s) for s in out["scores"]]
-        else:
-            valid_comet_scores = [float(s) for s in out]
-
-        # Re-expand comet scores to full length, None for empty predictions
-        valid_iter = iter(valid_comet_scores)
-        comet_scores = [
-            None if (not pred or not pred.strip()) else next(valid_iter)
-            for pred in predictions
-        ]
-
-        comet_mean = sum(valid_comet_scores) / len(valid_comet_scores)
-        comet_var = sum((s - comet_mean) ** 2 for s in valid_comet_scores) / len(valid_comet_scores)
-        comet_std = comet_var ** 0.5
-
-        return {
-            "xcomet-xl": comet_mean,
-            "xcomet-xl_std": comet_std,
+        results = {
             "bleu": bleu.score,
             "chrfpp": chrf.score,
             "num_predictions": len(predictions),
-            "num_valid_predictions": len(valid_preds),
             "per_example_scores": {
                 "xcomet-xl": comet_scores,
                 "bleu": per_example_bleu,
                 "chrfpp": per_example_chrf,
             },
         }
+
+        # Calculate xCOMET score
+        if self.include_comet:
+            print("Computing xCOMET scores...")
+            comet_model = self._load_comet_model()
+            
+            # Prepare data for COMET
+            data = [
+                {
+                    "src": src,
+                    "mt": pred,
+                    "ref": ref
+                }
+                for src, pred, ref in zip(self.sources, predictions, references)
+            ]
+            out = comet_model.predict(data, batch_size=64, gpus=1)
+            # Extract per-example scores robustly, but ALWAYS aggregate as mean(scores)
+            if hasattr(out, "scores"):
+                comet_scores = [float(s) for s in out.scores]
+            elif isinstance(out, dict) and "scores" in out:
+                comet_scores = [float(s) for s in out["scores"]]
+            else:
+                comet_scores = [float(s) for s in out]
+
+            comet_mean = sum(comet_scores) / len(comet_scores)
+            # Std (population std, consistent with your previous formula)
+            comet_var = sum((s - comet_mean) ** 2 for s in comet_scores) / len(comet_scores)
+            comet_std = comet_var ** 0.5
+
+            results.update({"xcomet-xl": comet_mean, "xcomet-xl_std": comet_std})
+
+        return results

@@ -1,5 +1,7 @@
+dotenv
 together
 google-genai
+cohere
 openai
 datasets
 pyyaml

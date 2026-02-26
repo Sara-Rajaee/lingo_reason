@@ -12,3 +12,8 @@ openai:
   api_key: ${OPENAI_API_KEY}
   timeout: 600
   max_retries: 3
+
+cohere:
+  api_key: ${COHERE_API_KEY}
+  timeout: 600
+  max_retries: 3
