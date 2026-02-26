@@ -3,13 +3,13 @@ tasks:
     benchmark_type: "mmmlu"
     dataset_name: "CohereLabs/Global-MMLU-Lite"
     split: "test"
-    subsets: ["en", 'de', 'zh', 'ar', "bn"]
+    subsets: ['zh', 'ar', "bn"] #["en", 'de'] #, 
     defaults:
       batch_size: 64
       max_new_tokens: 8192
       temperature: 0.0
       top_p: 1.0
-      limit_per_subset: 1 #400
+      limit_per_subset: 400 #400
   
   wmt24pp:
     benchmark_type: "wmt24pp"
@@ -21,18 +21,18 @@ tasks:
       max_new_tokens: 8192
       temperature: 0.0
       top_p: 1.0
-      limit_per_subset: 1 #998
+      limit_per_subset: 998 #998
       filter_bad: false
       src_lang: "English" 
 
   polymath:
     benchmark_type: "polymath"
     dataset_name: "Qwen/PolyMath"
-    split: "low" #should be top, high, medium, or low
+    split: "medium" #should be top, high, medium, or low
     subsets: ["en", "de", "ar", "zh", "bn"]
     defaults:
       batch_size: 64
       max_new_tokens: 8192
       temperature: 0.0
       top_p: 1.0
-      limit_per_subset: 1 #400
+      limit_per_subset: 400 #400
