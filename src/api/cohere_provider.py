@@ -22,7 +22,7 @@ class CohereAPIProvider(BaseProvider):
                     "type": "enabled" if params.get('reasoning', True) else "disabled",
                     "token_budget": thinking_budget}
             )
-            output = {"raw_generation": None}
+            output = {"raw_generation": None, "generation": None, "reasoning": None}
             for content in response.message.content:
                 if content.type == "thinking":
                     output["reasoning"] = content.thinking
