@@ -17,3 +17,9 @@ cohere:
   api_key: ${COHERE_API_KEY}
   timeout: 600
   max_retries: 3
+
+gpt_oss:
+  api_base: ${GPT_OSS_API_BASE:-http://localhost:19743/v1/}
+  api_key: ${GPT_OSS_API_KEY:-no-key}
+  timeout: 600
+  max_retries: 3

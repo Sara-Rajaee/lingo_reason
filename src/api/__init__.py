@@ -2,15 +2,17 @@ from .together_provider import TogetherAIProvider
 from .gemini_provider import GeminiProvider
 from .openai_provider import OpenAIProvider
 from .cohere_provider import CohereAPIProvider
+from .gpt_oss_provider import GptOssProvider
 
 class ProviderFactory:
     _providers = {
         'together_ai': TogetherAIProvider,
         'gemini': GeminiProvider,
         'openai': OpenAIProvider,
-        'cohere': CohereAPIProvider
+        'cohere': CohereAPIProvider,
+        'gpt_oss': GptOssProvider,
     }
-    
+
     @staticmethod
     def get_provider(provider_name, config):
         provider_class = ProviderFactory._providers.get(provider_name)
