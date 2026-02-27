@@ -159,7 +159,16 @@ class Evaluator:
                 output['scores'] = {
                     'accuracy': per_example_scores[i]
                 }
-        
+
+        elif 'per_example_stats' in metrics.keys(): # MuLR
+            per_example_stats = metrics.pop('per_example_stats')
+            # Add scores to each raw output (now they're aligned by index)
+            for i, output in enumerate(raw_outputs):
+                output['scores'] = {
+                    'points': per_example_stats['points'][i],
+                    'valid_format': per_example_stats['valid_formats'][i],
+                    'extracted_answer': per_example_stats['extracted_answer'][i]
+                }
         return {
             'metrics': metrics,
             'raw_outputs': raw_outputs,

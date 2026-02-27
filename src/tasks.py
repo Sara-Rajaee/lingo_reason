@@ -656,7 +656,6 @@ class MuLRBenchmark(BaseBenchmark):
         examples = []
         for problem in ds:
             # Each row is a full problem with one question.
-            # Field names below reflect the most likely schema; adjust if needed.
             problem_id   = problem['id']
             prompt       = problem['prompt']
             task_type    = problem['type']
@@ -703,6 +702,7 @@ class MuLRBenchmark(BaseBenchmark):
 
         total_points = []
         valid_formats = []
+        model_answers = []
         chrf = sacrebleu.metrics.CHRF() 
 
         assert eval_types
@@ -714,6 +714,7 @@ class MuLRBenchmark(BaseBenchmark):
             ref_norm  = ref.strip().lower()
             model_answer, valid = extract_answer(pred_norm)
             valid_formats.append(valid)
+            model_answers.append(model_answer)
 
             if eval_type.lower() == 'exact match':
                 correct = float(ref_norm == model_answer)
@@ -722,10 +723,11 @@ class MuLRBenchmark(BaseBenchmark):
             total_points.append(correct*point)
 
         return {
-            'total': sum(total_points),
+            'total_points': sum(total_points),
             'valid_format_rate': sum(valid_formats)/len(valid_formats),
-            "per_example_scores": {
+            "per_example_stats": {
                 "points": total_points,
-                "valid_format": valid_formats
+                "valid_format": valid_formats,
+                "extracted_answer": model_answers
             },
         }
