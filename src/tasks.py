@@ -727,7 +727,7 @@ class MuLRBenchmark(BaseBenchmark):
             'valid_format_rate': sum(valid_formats)/len(valid_formats),
             "per_example_stats": {
                 "points": total_points,
-                "valid_format": valid_formats,
-                "extracted_answer": model_answers
+                "valid_formats": valid_formats,
+                "extracted_answers": model_answers
             },
         }

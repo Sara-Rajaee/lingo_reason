@@ -167,7 +167,7 @@ class Evaluator:
                 output['scores'] = {
                     'points': per_example_stats['points'][i],
                     'valid_format': per_example_stats['valid_formats'][i],
-                    'extracted_answer': per_example_stats['extracted_answer'][i]
+                    'extracted_answer': per_example_stats['extracted_answers'][i]
                 }
         return {
             'metrics': metrics,
