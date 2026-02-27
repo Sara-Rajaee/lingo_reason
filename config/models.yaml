@@ -50,7 +50,7 @@ models:
     model_id: "command-a-reasoning"
     default_params:
       temperature: 0
-      max_tokens: 12024
+      max_tokens: 10216
       thinking_budget: 8192
       reasoning: True
 
