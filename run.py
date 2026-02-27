@@ -29,7 +29,7 @@ async def evaluate_task_subset(model, provider_config, task_name, task_config, s
     
     # Save results
     output_dir = get_output_dir()
-    save_results(results, output_dir, model['name'], task_name, subset, task_config['split'])
+    save_results(results, output_dir, model['name'], task_name, subset, task_config.get('split'))
     
     # Print summary
     print(f"\n{'='*60}")

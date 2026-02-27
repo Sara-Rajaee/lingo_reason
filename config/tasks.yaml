@@ -37,3 +37,14 @@ tasks:
       temperature: 0.0
       top_p: 1.0
       limit_per_subset: 400 #400
+
+  mulr:
+    benchmark_type: "mulr"
+    dataset_name: "mulr"
+    subsets: ["en"] #["zh", "cs", "nl", "en", "et", "fr", "de", "ja", "ko", "fa", "pt", "ru", "es", "sv", "uk"] 
+    defaults:
+      batch_size: 64
+      max_new_tokens: 8192
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: 90

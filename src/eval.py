@@ -50,12 +50,24 @@ class Evaluator:
 
             if hasattr(example, 'source'): #mt
                 source_text = example.source
+                eval_type = 'mt_metrics'
+                points = 1
             elif hasattr(example, 'question') and hasattr(example, 'A'): #mmlu
                 source_text = example.question + f"A) {example.A}\nB) {example.B}\nC) {example.C}\nD) {example.D}\n\n"
+                eval_type = 'accuracy'
+                points = 1
             elif hasattr(example, 'question'): #polymath
                 source_text = example.question 
+                eval_type = 'accuracy'
+                points = 1
+            elif hasattr(example, 'eval_type') and hasattr(example, 'points'): #MuLR
+                eval_type = example.eval_type
+                source_text = example.prompt
+                points = example.points
             else:
                 source_text = None
+                eval_type = None
+                points = 1
             
             return {
                 'id': example.id,
@@ -64,7 +76,9 @@ class Evaluator:
                 'reasoning': output['reasoning'],
                 'generation': output['generation'],
                 'raw_generation': output['raw_generation'],
-                'target_text': target_text
+                'target_text': target_text,
+                'eval_type': eval_type,
+                'points': points
             }
     
     async def run(self):
@@ -114,11 +128,15 @@ class Evaluator:
         
         # Extract predictions and references for evaluation
         # Use 'generation' (without reasoning tokens) for evaluation
+        # Points can be used to weigh examples
+        # Eval types are relevant for linguistic reasoning with diverse tasks types
         predictions = [output['generation'] for output in raw_outputs]
         references = [output['target_text'] for output in raw_outputs]
+        eval_types = [output['eval_type'] for output in raw_outputs]
+        points = [output['points'] for output in raw_outputs]
         
         # Evaluate
-        metrics = self.benchmark.evaluate(predictions, references)
+        metrics = self.benchmark.evaluate(predictions, references, eval_types, points)
 
         # Add per-example scores to raw outputs if available
         if 'per_example_scores' in metrics.keys():
@@ -130,7 +148,7 @@ class Evaluator:
                     'bleu': per_example_scores['bleu'][i] if 'bleu' in per_example_scores else None,
                     'chrfpp': per_example_scores['chrfpp'][i] if 'chrfpp' in per_example_scores else None
                 }
-                if self.task_config['defaults']['include_comet']:
+                if self.task_config['defaults'].get('include_comet', False):
                      output['scores'].update({
                     'xcomet-xl': per_example_scores['xcomet-xl'][i] if 'xcomet-xl' in per_example_scores else None})
 

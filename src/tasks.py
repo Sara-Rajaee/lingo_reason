@@ -1,9 +1,10 @@
 from datasets import load_dataset
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional
 import sacrebleu
-from comet import download_model, load_from_checkpoint
+import iso639
+#from comet import download_model, load_from_checkpoint
 from math_verify import parse, StringExtractionConfig, LatexExtractionConfig, verify
 import re
 
@@ -29,7 +30,7 @@ class BaseBenchmark(ABC):
         pass
     
     @abstractmethod
-    def evaluate(self, predictions, references):
+    def evaluate(self, predictions, references, eval_types=None, points=None):
         """Evaluate predictions against references"""
         pass
     
@@ -52,6 +53,8 @@ class BenchmarkFactory:
             return PolyMathBenchmark(task_config, subset)
         elif benchmark_type == 'linguini':
             return LinguiniBenchmark(task_config, subset)
+        elif benchmark_type == 'mulr':
+            return MuLRBenchmark(task_config, subset)
         else:
             raise ValueError(f"Unknown benchmark: {benchmark_type}")
 
@@ -118,7 +121,7 @@ class MMMLUBenchmark(BaseBenchmark):
             f"A) {example.A}\nB) {example.B}\nC) {example.C}\nD) {example.D}\n\n"
         )
     
-    def evaluate(self, predictions, references):
+    def evaluate(self, predictions, references, eval_types=None, points=None):
         """Evaluate MMMLU predictions"""
         correct = 0
         total = len(predictions)
@@ -261,7 +264,7 @@ class PolyMathBenchmark(BaseBenchmark):
             f"{poly_math_instruction[self.subset]}\n\n"
         )
     
-    def evaluate(self, predictions, references):
+    def evaluate(self, predictions, references, eval_types=None, points=None):
         """Evaluate MMMLU predictions"""
         correct = 0
         total = len(predictions)
@@ -370,7 +373,8 @@ class LinguiniBenchmark(BaseBenchmark):
             "Do not include explanations in your final answer.\n\n"
         )
 
-    def evaluate(self, predictions: List[str], references: List[str]) -> dict:
+    def evaluate(self, predictions: List[str], references: List[str], 
+                 eval_types: Optional[List[str]]=None, points: Optional[List[float]] =None) -> dict:
         """Evaluate using exact match (case-insensitive) + chrF score."""
         assert len(predictions) == len(references), (
             f"Mismatch: {len(predictions)} predictions vs {len(references)} references"
@@ -529,7 +533,7 @@ class WMT24PPBenchmark(BaseBenchmark):
             print("xCOMET-xl model loaded!")
         return self.comet_model
     
-    def evaluate(self, predictions, references):
+    def evaluate(self, predictions, references, eval_types=None, points=None):
         """Evaluate WMT24++ predictions using xCOMET, BLEU, and chrF++"""
 
         assert len(predictions) == len(references), \
@@ -604,3 +608,124 @@ class WMT24PPBenchmark(BaseBenchmark):
             results["per_example_scores"].update({"xcomet-xl": comet_scores})
 
         return results
+    
+
+# ---- WMT Multilingual Linguistic Reasoning (MuLR) ----
+@dataclass
+class MuLRExample:
+    id: str
+    prompt: str           # The linguistic puzzle prompt including instruction and task context
+    answer: str           # Gold answer
+    task_type: str        # one of "translation", "mapping", "fill-in-blanks", "classification"
+    task_lang: str        # The low-resource language being tested
+    eval_type: str        # either "chrF" or "exact match"
+    points: float         # How many points this task scores (proxy of difficulty)
+    meta: str             # Author and task information
+
+
+class MuLRBenchmark(BaseBenchmark):
+    """Multilingual linguistic reasoning benchmark from WMT MIST 2025.
+
+    Based on International Linguistic Olympiad (IOL) problems.
+    Each 'problem' contains a context (word pairs in an unknown language)
+    and multiple questions requiring deductive linguistic reasoning.
+    These are reorganized into individual prompts and answers (90).
+    Evaluated via ChrF and exact match, weighted by points.
+
+    # TODO upload on huggingface
+    Local dataset: json
+    """
+
+    def load_data(self):
+        name = self.task_config['dataset_name']       # "mulr"
+        split = self.task_config.get('split', 'train')  # no train split, just default
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        ds = load_dataset('json', data_files="data/linguistic_reasoning_wmt_2025_test.json", split=split)
+
+        # Select language.        
+        def select_language(example):
+            return iso639.Language.from_name(example['problem_language']).part1 == self.subset 
+        
+        ds = ds.filter(select_language)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for problem in ds:
+            # Each row is a full problem with one question.
+            # Field names below reflect the most likely schema; adjust if needed.
+            problem_id   = problem['id']
+            prompt       = problem['prompt']
+            task_type    = problem['type']
+            eval_type    = problem['eval_type']
+            task_lang    = problem['instruction_language']
+            answer       = problem['answer']
+            meta         = problem['meta']
+            points       = problem['points']
+        
+            examples.append(MuLRExample(id=problem_id, prompt=prompt, answer=answer, task_type=task_type, 
+                                        task_lang=task_lang, eval_type=eval_type, points=points, meta=meta))
+            
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} question instances from {self.subset}")
+        return examples
+    
+    def prepare_prompt(self, example):
+        # This benchmark has prompts readily formatted.
+        return example.prompt
+
+    def evaluate(self, predictions: List[str], references: List[str], eval_types: Optional[List[str]]=None, points: Optional[List[float]] =None) -> dict:
+        """Evaluate using exact match (case-insensitive) and chrF score, weighted by points."""
+        assert len(predictions) == len(references), (
+            f"Mismatch: {len(predictions)} predictions vs {len(references)} references"
+        )
+
+        def ends_with_bracketed_line(text):
+            lines = text.splitlines()
+            if not lines:
+                return False
+            last_line = lines[-1].strip()
+            return last_line.startswith('[') and last_line.endswith(']')
+
+        def extract_text_between_brackets(input_string):
+            last_line = input_string.splitlines()[-1].strip()
+            pattern = r"\[(.*?)\]"
+            matches = re.findall(pattern, last_line)
+            return matches[-1] if matches else last_line
+        
+        def extract_answer(generation):
+            valid_format = ends_with_bracketed_line(generation)
+            return extract_text_between_brackets(generation), valid_format
+
+        total_points = []
+        valid_formats = []
+        chrf = sacrebleu.metrics.CHRF() 
+
+        assert eval_types
+        assert points
+        assert len(predictions) == len(eval_types) == len(points)
+
+        for pred, ref, eval_type, point in zip(predictions, references, eval_types, points):
+            pred_norm = pred.strip().lower()
+            ref_norm  = ref.strip().lower()
+            model_answer, valid = extract_answer(pred_norm)
+            valid_formats.append(valid)
+
+            if eval_type.lower() == 'exact match':
+                correct = float(ref_norm == model_answer)
+            elif eval_type.lower() == 'chrf':
+                correct = chrf.sentence_score(model_answer, [ref_norm]).score/100
+            total_points.append(correct*point)
+
+        return {
+            'total': sum(total_points),
+            'valid_format_rate': sum(valid_formats)/len(valid_formats),
+            "per_example_scores": {
+                "points": total_points,
+                "valid_format": valid_formats
+            },
+        }
