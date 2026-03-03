@@ -622,6 +622,12 @@ class MuLRExample:
     points: float         # How many points this task scores (proxy of difficulty)
     meta: str             # Author and task information
 
+mulr_instruction = {
+    'en': "\n\nOnly generate your final response within square brackets [] without extra explanations.\n\n",
+    'de': "\n\nGeben Sie Ihre endgültige Antwort ausschließlich in eckigen Klammern [] an, ohne zusätzliche Erläuterungen.\n\n",
+    'zh': "\n\n请仅在方括号 [] 内填写最终答案，无需额外解释。\n\n",
+
+}
 
 class MuLRBenchmark(BaseBenchmark):
     """Multilingual linguistic reasoning benchmark from WMT MIST 2025.
@@ -675,7 +681,7 @@ class MuLRBenchmark(BaseBenchmark):
     
     def prepare_prompt(self, example):
         # This benchmark has prompts readily formatted.
-        return example.prompt
+        return example.prompt + mulr_instruction[self.subset]
 
     def evaluate(self, predictions: List[str], references: List[str], eval_types: Optional[List[str]]=None, points: Optional[List[float]] =None) -> dict:
         """Evaluate using exact match (case-insensitive) and chrF score, weighted by points."""
