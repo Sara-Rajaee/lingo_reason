@@ -15,9 +15,9 @@ class OpenAIProvider(BaseProvider):
             response = await self.client.chat.completions.create(
                 model=model_id,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=params.get('temperature', 0.7),
+                temperature=params.get('temperature', 0),
                 max_tokens=params.get('max_tokens', 512),
-                top_p=params.get('top_p', 0.9),
+                top_p=params.get('top_p', 1),
             )
             return response.choices[0].message.content
         
