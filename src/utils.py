@@ -31,8 +31,11 @@ def save_results(results, output_dir, model_name, task_name, subset, split, reas
             model_dir = f"{model_name}_reasoning"
     else:
         model_dir = f"{model_name}_no_reasoning"
+
+    if task_name == 'polymath':
+        task_name = task_name + '_' + split
     
-    result_path = os.path.join(output_dir, model_dir, task_name, subset)
+    result_path = os.path.join(output_dir, task_name, model_dir, subset)
     os.makedirs(result_path, exist_ok=True)
     
     # Save metadata
@@ -61,5 +64,5 @@ def save_results(results, output_dir, model_name, task_name, subset, split, reas
 
 def get_output_dir():
     """Create timestamped output directory"""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return os.path.join('results', timestamp)
+    # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return 'results'
