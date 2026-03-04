@@ -681,7 +681,7 @@ class MuLRBenchmark(BaseBenchmark):
     
     def prepare_prompt(self, example):
         # This benchmark has prompts readily formatted.
-        return example.prompt + mulr_instruction[self.subset]
+        return example.prompt 
 
     def evaluate(self, predictions: List[str], references: List[str], eval_types: Optional[List[str]]=None, points: Optional[List[float]] =None) -> dict:
         """Evaluate using exact match (case-insensitive) and chrF score, weighted by points."""
