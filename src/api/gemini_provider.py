@@ -34,7 +34,8 @@ class GeminiProvider(BaseProvider):
                         # thinking_config=types.ThinkingConfig(thinking_budget=-1)
                     )
                 )
-                reasoning, generation = None, None
+
+                reasoning, generation = "", ""
                 for part in response.candidates[0].content.parts:
                     if not part.text:
                         continue
@@ -48,6 +49,7 @@ class GeminiProvider(BaseProvider):
                     'reasoning': reasoning,
                     'generation': generation,
                     'raw_generation': None
+                    'finish_reason': response.candidates[0].finish_reason
                 }
             
             return await loop.run_in_executor(None, _sync_generate)

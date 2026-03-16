@@ -718,7 +718,10 @@ class MuLRBenchmark(BaseBenchmark):
         for pred, ref, eval_type, point in zip(predictions, references, eval_types, points):
             pred_norm = pred.strip().lower()
             ref_norm  = ref.strip().lower()
-            model_answer, valid = extract_answer(pred_norm)
+            if len(pred_norm) > 0:
+                model_answer, valid = extract_answer(pred_norm)
+            else:
+                model_answer, valid = "", False
             valid_formats.append(valid)
             model_answers.append(model_answer)
 

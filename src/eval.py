@@ -76,6 +76,7 @@ class Evaluator:
                 'reasoning': output['reasoning'],
                 'generation': output['generation'],
                 'raw_generation': output['raw_generation'],
+                'finish_reason': output['finish_reason'],
                 'target_text': target_text,
                 'eval_type': eval_type,
                 'points': points
