@@ -15,3 +15,9 @@ torch
 math_verify
 litellm
 python-iso639
+regex
+sympy
+antlr4-python3-runtime
+pebble
+langdetect
+word2number
