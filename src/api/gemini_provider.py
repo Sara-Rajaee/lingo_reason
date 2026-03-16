@@ -48,7 +48,7 @@ class GeminiProvider(BaseProvider):
                 return {
                     'reasoning': reasoning,
                     'generation': generation,
-                    'raw_generation': None
+                    'raw_generation': None,
                     'finish_reason': response.candidates[0].finish_reason
                 }
             
