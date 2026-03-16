@@ -1,3 +1,10 @@
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../third_party/PolyMath/eval"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../third_party/PolyMath"))
+
+from run_eval import extract_boxed_content
+from scripts import math_equal
+
 from datasets import load_dataset
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
@@ -7,6 +14,7 @@ import iso639
 #from comet import download_model, load_from_checkpoint
 from math_verify import parse, StringExtractionConfig, LatexExtractionConfig, verify
 import re
+from instruction import query_dic
 
 # ---------- Base Classes ----------
 
@@ -55,6 +63,8 @@ class BenchmarkFactory:
             return LinguiniBenchmark(task_config, subset)
         elif benchmark_type == 'mulr':
             return MuLRBenchmark(task_config, subset)
+        elif benchmark_type == 'aime2025':
+            return AIME2025Benchmark(task_config, subset)
         else:
             raise ValueError(f"Unknown benchmark: {benchmark_type}")
 
@@ -261,33 +271,92 @@ class PolyMathBenchmark(BaseBenchmark):
         """Prepare PolyMath prompt"""
         return (
             f"{example.question}\n"
-            f"{poly_math_instruction[self.subset]}\n\n"
+            f"{query_dic[self.subset]}\n\n"
         )
     
     def evaluate(self, predictions, references, eval_types=None, points=None):
         """Evaluate MMMLU predictions"""
         correct = 0
         total = len(predictions)
-        
-        extracted_predictions = [extract_boxed_answer(pred) for pred in predictions]
         scores = []
-        for pred, ref in zip(extracted_predictions, references):
-            if verify(ref, pred):
-                correct += 1
-                scores.append(1)
-            else:
-                scores.append(0)
-        
-        
-        accuracy = (correct / total * 100) if total > 0 else 0
-        
+
+        for pred_text, ref in zip(predictions, references):
+            normalized = normalize_latex(pred_text)
+            extracted = extract_boxed_content(normalized)
+            extracted = extracted[0] if extracted else None
+            is_correct = math_equal(extracted, ref)
+            correct += int(is_correct)
+            scores.append(1 if is_correct else 0)
+
+        accuracy = round(correct / total * 100, 1) if total > 0 else 0
+
         return {
             'accuracy': accuracy,
             'correct': correct,
             'total': total,
-            'per_example_accuracy': scores
+            'per_example_accuracy': scores,
+        }
+# ---------- AIME 2020 ---------
+@dataclass
+class AIMEExample:
+    id: str
+    question: str
+    answer: str
+
+
+class AIME2025Benchmark(BaseBenchmark):
+    """AIME 2025 - MathArena dataset"""
+
+    def load_data(self):
+        name = self.task_config['dataset_name']  # MathArena/aime_2025
+        split = self.task_config['split']        # train
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name}...")
+        ds = load_dataset(name, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            examples.append(AIMEExample(
+                id=f"aime2025_{i}",
+                question=r["problem"],
+                answer=str(r["answer"]),  # int in dataset, cast to str
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples")
+        return examples
+
+    def prepare_prompt(self, example):
+        return (
+            f"{example.question}\n"
+            f"Note: Please put the final answer in the $\\boxed{{}}$.\n\n"
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        correct = 0
+        total = len(predictions)
+        scores = []
+
+        for pred_text, ref in zip(predictions, references):
+            extracted = extract_boxed_answer(pred_text)
+            is_correct = verify(ref, extracted)
+            correct += int(is_correct)
+            scores.append(1 if is_correct else 0)
+
+        accuracy = round(correct / total * 100, 1) if total > 0 else 0
+
+        return {
+            'accuracy': accuracy,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
         }
 
+        
 # ---------- Linguini ----------
 
 @dataclass

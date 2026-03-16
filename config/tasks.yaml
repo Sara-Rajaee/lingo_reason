@@ -29,8 +29,8 @@ tasks:
   polymath:
     benchmark_type: "polymath"
     dataset_name: "Qwen/PolyMath"
-    split: "low" #should be top, high, medium, or low
-    subsets: ["en", "de", "ar", "zh", "bn"]
+    split: "top" #should be top, high, medium, or low
+    subsets: [ "en", "de", "ar", "zh", "bn"]
     defaults:
       batch_size: 64
       max_new_tokens: 8192
@@ -48,3 +48,14 @@ tasks:
       temperature: 0.0
       top_p: 1.0
       limit_per_subset: 90
+
+  aime2025:
+    benchmark_type: "aime2025"
+    dataset_name: "MathArena/aime_2025"
+    split: "train"
+    subsets: ["default"]
+    defaults:
+      batch_size: 30
+      max_new_tokens: 8192
+      temperature: 0.0
+      top_p: 1.0
