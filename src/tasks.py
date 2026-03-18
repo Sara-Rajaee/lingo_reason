@@ -36,7 +36,12 @@ class BaseBenchmark(ABC):
     def prepare_prompt(self, example):
         """Prepare prompt for a single example"""
         pass
-    
+
+    @abstractmethod
+    def prepare_system_prompt(self, example):
+        """Prepare system prompt for a single example"""
+        pass
+
     @abstractmethod
     def evaluate(self, predictions, references, eval_types=None, points=None):
         """Evaluate predictions against references"""
@@ -65,6 +70,8 @@ class BenchmarkFactory:
             return MuLRBenchmark(task_config, subset)
         elif benchmark_type == 'aime2025':
             return AIME2025Benchmark(task_config, subset)
+        elif benchmark_type == 'absencebench':
+            return AbsenceBenchmark(task_config, subset)
         else:
             raise ValueError(f"Unknown benchmark: {benchmark_type}")
 
@@ -808,4 +815,245 @@ class MuLRBenchmark(BaseBenchmark):
                 "valid_formats": valid_formats,
                 "extracted_answers": model_answers
             },
+        }
+
+# ---- AbsenceBench ----
+@dataclass
+class AbsenceBenchExample:
+    id: str
+    original_context: str
+    modified_context: str
+    omitted_context: list   # list of strings (poetry, github_prs)
+    omitted_index: list     # list of ints
+    metadata: dict
+
+ABSENCE_SYSTEM_PROMPTS = {
+    "poetry": (
+        "You are helping a student practice memorizing poems. \n"
+        "The student will recite a poem, but they may have missed some lines. \n"
+        "Your task is to identify exactly which lines are missing from their recitation.\n"
+        "List only the missing lines, nothing else."
+    ),
+    "numerical": (
+        "You are helping a student practice reciting sequences. \n"
+        "The student will recite a sequence, but they may have missed some numbers. \n"
+        "Your task is to identify exactly which numbers are missing from their recitation.\n"
+        "List only the missing numbers, nothing else."
+    ),
+    "github_prs": (
+        "You are helping a software developer determine if their merge"
+        " of a pull request was successful. "
+        "The developer had to edit the commit history and just wants to make sure"
+        " that they have not changed what will be merged. "
+        "They will list the changed lines. "
+        "Your job is to figure out if they have missed any "
+        "insertions or deletions from the original merge. "
+        "Only pay attention to the insertions and deletions (ignore the context of the diff)."
+    ),
+}
+
+# ── Official evaluate_response per domain ─────────────────────────────────────
+
+def evaluate_response_poetry(response: str, example: AbsenceBenchExample) -> dict:
+    """Exact port of test_llms_poetry.py evaluate_response (non-needle mode)."""
+    original_lines = example.original_context.split('\n')
+    omitted_indices = set(example.omitted_index)
+
+    tp, fp, fn = 0, 0, 0
+
+    for idx, line in enumerate(original_lines):
+        clean_line = line.strip().lower()
+        if clean_line and clean_line in response.lower():
+            if idx in omitted_indices:
+                tp += 1
+            else:
+                fp += 1
+        elif clean_line and clean_line not in response.lower():
+            if idx in omitted_indices:   # ← only count as FN if it was omitted
+                fn += 1
+
+    try:
+        micro_f1 = 2 * tp / (2 * tp + fp + fn)
+    except ZeroDivisionError:
+        micro_f1 = 0
+
+    if len(example.omitted_index) == 0:
+        micro_f1 = 1 - fp / len(original_lines)
+
+    return {"tp": tp, "fp": fp, "fn": fn, "micro_f1": micro_f1}
+
+
+def evaluate_response_numerical(response: str, example: AbsenceBenchExample) -> dict:
+    """Exact port of test_llms_numerical.py evaluate_response."""
+    og_sequence = example.original_context.split('\n')
+    omitted_indices = set(example.omitted_index)
+
+    tp, fp, fn = 0, 0, 0
+    response_lines = [x.strip() for x in response.split('\n')]
+
+    for idx, element in enumerate(og_sequence):
+        str_element = str(element)
+        if str_element in response_lines:
+            if idx in omitted_indices:
+                tp += 1
+            else:
+                fp += 1
+        else:
+            if idx in omitted_indices:
+                fn += 1
+
+    try:
+        micro_f1 = 2 * tp / (2 * tp + fp + fn)
+    except ZeroDivisionError:
+        micro_f1 = 0
+
+    if len(example.omitted_index) == 0:
+        micro_f1 = 1 - fp / len(og_sequence)
+
+    return {"tp": tp, "fp": fp, "fn": fn, "micro_f1": micro_f1}
+
+
+def evaluate_response_github(response: str, example: AbsenceBenchExample) -> dict:
+    """Exact port of test_llms_github_prs.py evaluate_response (non-needle mode)."""
+    original_lines = example.original_context.split('\n')
+    omitted_indices = set(example.omitted_index)
+
+    tp, fp, fn = 0, 0, 0
+
+    # handle repeated lines as FP
+    repeat_lines = list(set([l for l in original_lines if original_lines.count(l) != 1]))
+    for line in repeat_lines:
+        line_count = min(
+            response.lower().count("\n" + line.strip().lower() + "\n"),
+            original_lines.count(line)
+        )
+        fp += line_count
+
+    for idx, line in enumerate(original_lines):
+        if line in repeat_lines:
+            continue
+        clean_line = line.strip().lower()
+        if clean_line and clean_line in response.lower():
+            if idx in omitted_indices:
+                tp += 1
+            else:
+                fp += 1
+        elif clean_line and clean_line not in response.lower():
+            if idx in omitted_indices:   # ← only count as FN if it was omitted
+                fn += 1
+
+    try:
+        micro_f1 = 2 * tp / (2 * tp + fp + fn)
+    except ZeroDivisionError:
+        micro_f1 = 0
+
+    if len(example.omitted_index) == 0:
+        micro_f1 = 1 - fp / len(original_lines)
+
+    return {"tp": tp, "fp": fp, "fn": fn, "micro_f1": micro_f1}
+
+
+# ── Dispatcher ─────────────────────────────────────────────────────────────────
+
+EVALUATE_FN = {
+    "poetry":     evaluate_response_poetry,
+    "numerical":  evaluate_response_numerical,
+    "github_prs": evaluate_response_github,
+}
+
+class AbsenceBenchmark(BaseBenchmark):
+    """AbsenceBench: Language Models Can't Tell What's Missing
+    Subsets: poetry, numerical, github_prs
+    """
+
+    def load_data(self):
+        name  = self.task_config['dataset_name']  # harveyfin/AbsenceBench
+        split = self.task_config['split']         # validation
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        ds = load_dataset(name, self.subset, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            examples.append(AbsenceBenchExample(
+                id=f"{self.subset}_{i}",
+                original_context=r["original_context"],
+                modified_context=r["modified_context"],
+                omitted_context=r.get("omitted_context", []),
+                omitted_index=r["omitted_index"],
+                metadata=r.get("metadata", {}),
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        if self.subset == "poetry":
+            return (
+                f"Here is the complete original poem:\n\n"
+                f"{example.original_context}\n\n"
+                f"Now, here is my recitation which may be missing some lines:\n\n"
+                f"{example.modified_context}\n\n"
+                f"What lines did I miss? Please list only the missing lines, nothing else."
+            )
+        elif self.subset == "numerical":
+            return (
+                f"Here is a sequence of numbers:\n\n"
+                f"{example.original_context}\n\n"
+                f"Now, here is my recitation of the sequence which may be missing some numbers:\n\n"
+                f"{example.modified_context}\n\n"
+                f"What numbers did I miss? Please list only the missing numbers, nothing else."
+            )
+        elif self.subset == "github_prs":
+            return (
+                f"Here is the complete original diff:\n\n"
+                f"{example.original_context}\n\n"
+                f"And here is the merge diff after the developer fixed the commit history:\n\n"
+                f"{example.modified_context}\n\n"
+                f"What changed lines (insertions or deletions) present "
+                f"in the original diff are missing in the merge diff (if any)?\n"
+                f"List only the missing changed lines, nothing else."
+            )
+
+    def prepare_system_prompt(self):
+        return ABSENCE_SYSTEM_PROMPTS[self.subset]
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        """
+        predictions: list of raw model output strings
+        references:  list of AbsenceBenchExample (passed through from runner)
+                     OR list of omitted_index lists — depends on your runner.
+        Note: we need the full example for evaluation, not just references.
+        So references here should be the list of AbsenceBenchExample objects.
+        """
+        evaluate_fn = EVALUATE_FN[self.subset]
+        total = len(predictions)
+
+        total_tp, total_fp, total_fn = 0, 0, 0
+        per_example_f1 = []
+
+        for pred_text, example in zip(predictions, self.dataset):
+            result = evaluate_fn(pred_text, example)
+            total_tp += result["tp"]
+            total_fp += result["fp"]
+            total_fn += result["fn"]
+            per_example_f1.append(result["micro_f1"])
+
+        macro_f1 = sum(per_example_f1) / total if total > 0 else 0.0
+
+        try:
+            micro_f1 = 2 * total_tp / (2 * total_tp + total_fp + total_fn)
+        except ZeroDivisionError:
+            micro_f1 = 0.0
+
+        return {
+            'f1':             round(macro_f1 * 100, 1),
+            'micro_f1':       round(micro_f1 * 100, 1),
+            'total':          total,
+            'per_example_f1': per_example_f1,
         }
