@@ -30,15 +30,17 @@ class TogetherAIProvider(BaseProvider):
         # No reasoning found
         return None, text.strip()
 
-    async def generate(self, model_id, prompt, params, reasoning_effort, thinking_budget=None):
+    async def generate(self, model_id, prompt, params, system_prompt=None, reasoning_effort=None, thinking_budget=None):
         """Generate completion using TogetherAI asynchronously"""
         
         async def _generate():
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
             response = await self.client.chat.completions.create(
                 model=model_id,
-                messages=[
-                    {"role": "user", "content": prompt}
-                    ],
+                messages=messages,
                 reasoning={"enabled": params.get('reasoning', True)},
                 temperature=params.get('temperature', 0),
                 max_tokens=params.get('max_tokens', 512),

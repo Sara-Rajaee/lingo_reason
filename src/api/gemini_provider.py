@@ -10,7 +10,7 @@ class GeminiProvider(BaseProvider):
         super().__init__(config)
         self.client = genai.Client(api_key=config['api_key'])
     
-    async def generate(self, model_id, prompt, params, reasoning_effort=None, thinking_budget=0):
+    async def generate(self, model_id, prompt, params, system_prompt=None, reasoning_effort=None, thinking_budget=0):
         """Generate completion using Gemini asynchronously"""
         
         async def _generate():
@@ -22,6 +22,7 @@ class GeminiProvider(BaseProvider):
                     model=model_id,
                     contents=prompt,
                     config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
                         temperature=params.get('temperature', 0),
                         max_output_tokens=params.get('max_tokens', 512),
                         top_p=params.get('top_p', 1),
