@@ -3,7 +3,7 @@ tasks:
     benchmark_type: "mmmlu"
     dataset_name: "CohereLabs/Global-MMLU-Lite"
     split: "test"
-    subsets: ["en", 'de', 'zh', 'ar', "bn"] 
+    subsets: ["en", 'de', 'zh', 'ar', "bn", "fr", "ja", "ko", "pt", "es"] 
     defaults:
       batch_size: 64
       max_new_tokens: 8192
@@ -15,7 +15,7 @@ tasks:
     benchmark_type: "wmt24pp"
     dataset_name: "google/wmt24pp"
     split: "train"
-    subsets: ["en-ar_SA", "en-zh_CN", "en-bn_IN", "en-de_DE"] 
+    subsets: ["en-ar_SA", "en-zh_CN", "en-bn_IN", "en-de_DE", "en-fr_FR", "en-ja_JP", "en-ko_KR", "en-pt_PT", "en-es_MX"] 
     defaults:
       batch_size: 128
       max_new_tokens: 8192
@@ -30,7 +30,7 @@ tasks:
     benchmark_type: "polymath"
     dataset_name: "Qwen/PolyMath"
     split: "top" #should be top, high, medium, or low
-    subsets: [ "en", "de", "ar", "zh", "bn"]
+    subsets: ["zh", "bn", "en", "de", "ar", "fr", "ja", "ko", "pt", "es"]
     defaults:
       batch_size: 64
       max_new_tokens: 8192
@@ -41,7 +41,7 @@ tasks:
   mulr:
     benchmark_type: "mulr"
     dataset_name: "mulr"
-    subsets: ["en", "de", "zh"] #["zh", "cs", "nl", "en", "et", "fr", "de", "ja", "ko", "fa", "pt", "ru", "es", "sv", "uk"] 
+    subsets: ["en", "de", "zh", "fr", "ja", "ko", "pt", "es"] #["zh", "cs", "nl", "en", "et", "fr", "de", "ja", "ko", "fa", "pt", "ru", "es", "sv", "uk"] 
     defaults:
       batch_size: 64
       max_new_tokens: 8192
@@ -59,3 +59,15 @@ tasks:
       max_new_tokens: 8192
       temperature: 0.0
       top_p: 1.0
+
+  absencebench:
+    benchmark_type: "absencebench"
+    dataset_name: "harveyfin/AbsenceBench"
+    split: "validation"
+    subsets: ["github_prs"] #, "numerical", "github_prs"]
+    defaults:
+      batch_size: 32
+      max_new_tokens: 8192
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: 2000
