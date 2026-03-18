@@ -64,7 +64,7 @@ tasks:
     benchmark_type: "absencebench"
     dataset_name: "harveyfin/AbsenceBench"
     split: "validation"
-    subsets: ["github_prs"] #, "numerical", "github_prs"]
+    subsets: ["poetry", "numerical", "github_prs"]
     defaults:
       batch_size: 32
       max_new_tokens: 8192
