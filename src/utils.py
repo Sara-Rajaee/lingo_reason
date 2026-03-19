@@ -32,7 +32,7 @@ def save_results(results, output_dir, model_name, task_name, subset, split, reas
     else:
         model_dir = f"{model_name}_no_reasoning"
 
-    if task_name == 'polymath':
+    if task_name == 'polymath' or task_name == 'absencebench':
         task_name = task_name + '_' + split
     
     result_path = os.path.join(output_dir, task_name, model_dir, subset)
