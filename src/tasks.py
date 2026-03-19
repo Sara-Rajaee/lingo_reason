@@ -702,6 +702,12 @@ mulr_instruction = {
     'en': "\n\nOnly generate your final response within square brackets [] without extra explanations.\n\n",
     'de': "\n\nGeben Sie Ihre endgültige Antwort ausschließlich in eckigen Klammern [] an, ohne zusätzliche Erläuterungen.\n\n",
     'zh': "\n\n请仅在方括号 [] 内填写最终答案，无需额外解释。\n\n",
+    'fr': "\n\nVeuillez générer votre réponse finale uniquement entre crochets [] sans explications supplémentaires.\n\n",
+    'ja': "\n\n角括弧 [] 内には、追加の説明を一切含めずに、最終的な回答のみを記述してください。\n\n",
+    'ko': "\n\n추가 설명 없이 최종 답변만 대괄호 [] 안에 작성해 주십시오.\n\n", 
+    'pt': "\n\nGere a sua resposta final apenas entre parêntesis rectos [] sem explicações adicionais.\n\n",
+    'es': "\n\nGenere su respuesta final únicamente dentro de los corchetes [] sin explicaciones adicionales.\n\n"
+
 
 }
 
