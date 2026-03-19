@@ -37,10 +37,10 @@ class BaseBenchmark(ABC):
         """Prepare prompt for a single example"""
         pass
 
-    @abstractmethod
-    def prepare_system_prompt(self, example):
+
+    def prepare_system_prompt(self):
         """Prepare system prompt for a single example"""
-        pass
+        return None
 
     @abstractmethod
     def evaluate(self, predictions, references, eval_types=None, points=None):
