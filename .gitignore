@@ -3,13 +3,30 @@
 
 # data
 *.json
-*.jsonl 
+*.jsonl
 
-# bash files and API tokens
-*.sh
+# bash files with API tokens (but not scripts/)
+/*.sh
 
 *.pyc
 
-#playground files
+# playground files
 tmp.py
 comet_eval.py
+
+# logs and results
+logs/
+results/
+
+# virtual environment
+.venv/
+
+# environment
+.env
+
+# uv
+uv.lock
+
+# cache
+__pycache__/
+.cache/
