@@ -425,6 +425,11 @@ class LinguiniExample:
     eval_type: str
 
 
+def _chrf(hypothesis, reference):
+    """Compute sentence-level chrF score."""
+    return sacrebleu.sentence_chrf(hypothesis, [reference]).score / 100.0
+
+
 class LinguiniBenchmark(BaseBenchmark):
     """Linguini benchmark for language-agnostic linguistic reasoning.
 
@@ -454,26 +459,35 @@ class LinguiniBenchmark(BaseBenchmark):
 
         examples = []
         for problem in ds:
-            # Each row is a full problem with (potentially) multiple questions.
-            # Field names below reflect the most likely schema; adjust if needed.
-            problem_id   = str(problem.get('problem_id', problem.get('id', '')))
-            context      = problem.get('context', problem.get('context', ''))
-            task_type    = problem.get('task_type', problem.get('task_type', 'unknown'))
-            task_lang    = problem.get('task_lang', problem.get('task_lang', 'unknown'))
+            problem_id   = str(problem.get('id', ''))
+            context      = problem.get('context', '')
+            task_type    = problem.get('task_type', 'unknown')
+            task_lang    = problem.get('task_lang', 'unknown')
 
-            # Questions and answers are stored as parallel lists inside each row.
-            query = problem.get('query', [])
-            answers   = problem.get('answers', [])
+            query = problem.get('query', '')
+            answer_raw = problem.get('answer', '')
+            eval_type = problem.get('eval_type', 'single')
 
-        
+            # Parse answer: stored as string repr of a list, e.g. "['a', 'b']"
+            try:
+                import ast
+                answer_list = ast.literal_eval(answer_raw)
+                if isinstance(answer_list, list):
+                    answer = '\n'.join(str(a).strip() for a in answer_list)
+                else:
+                    answer = str(answer_list).strip()
+            except (ValueError, SyntaxError):
+                answer = str(answer_raw).strip()
+
             examples.append(LinguiniExample(
-                id=f"{problem_id}_q{q_idx}",
+                id=problem_id,
                 context=context,
-                question=q,
-                answer=str(a).strip(),
+                question=query,
+                answer=str(answer).strip(),
                 task_type=task_type,
                 task_lang=task_lang,
                 problem_id=problem_id,
+                eval_type=eval_type,
             ))
 
         self.dataset = examples
@@ -508,8 +522,9 @@ class LinguiniBenchmark(BaseBenchmark):
         chrf_scores = []
 
         for pred, ref in zip(predictions, references):
-            pred_norm = pred.strip().lower()
-            ref_norm  = ref.strip().lower()
+            # Normalize whitespace: collapse newlines/spaces for comparison
+            pred_norm = ' '.join(pred.strip().lower().split())
+            ref_norm  = ' '.join(ref.strip().lower().split())
 
             # Exact match
             match = int(pred_norm == ref_norm)
