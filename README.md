@@ -33,7 +33,11 @@ A framework for evaluating language models on different tasks.
    export GPT_OSS_API_BASE=http://localhost:19743/v1/   # proxy URL (default)
    export GPT_OSS_API_KEY=no-key                        # optional, proxy usually has no auth
    ```
-
+4. (optional) register polymath repo as a module (needed for polymath evaluation)
+   ```bash
+   git submodule add https://github.com/QwenLM/PolyMath.git third_party/PolyMath
+   git submodule update --init --recursive
+   ```
 ## Serving GPT-OSS Models
 
 GPT-OSS models are served locally via [vLLM](https://github.com/vllm-project/vllm). A launch script is provided at `scripts/serve.sh`.

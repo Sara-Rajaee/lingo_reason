@@ -62,13 +62,17 @@ class GptOssProvider(BaseProvider):
             "raw_generation": raw_content,
         }
 
-    async def generate(self, model_id, prompt, params, reasoning_effort=None, thinking_budget=None):
+    async def generate(self, model_id, prompt, params, system_prompt=None, reasoning_effort=None, thinking_budget=None):
         """Generate completion via liteLLM proxy (async)."""
 
         async def _generate():
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
             kwargs = dict(
                 model=f"hosted_vllm/{model_id}",
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 api_base=self.api_base,
                 api_key=self.api_key,
                 temperature=params.get("temperature", 0),

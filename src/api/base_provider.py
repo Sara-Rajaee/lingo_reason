@@ -10,7 +10,7 @@ class BaseProvider(ABC):
         self.max_retries = config.get('max_retries', 3)
     
     @abstractmethod
-    async def generate(self, model_id, prompt, params):
+    async def generate(self, model_id, prompt, params, system_prompt=None, reasoning_effort=None, thinking_budget=0):
         """
         Generate completion from the model asynchronously
         

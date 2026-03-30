@@ -28,11 +28,13 @@ class Evaluator:
         async with semaphore:
             # Prepare prompt
             prompt = self.benchmark.prepare_prompt(example)
+            system_prompt = self.benchmark.prepare_system_prompt()
             # Generate prediction with reasoning configuration
             output = await self.provider.generate(
                 model_id=self.model_config['model_id'],
                 prompt=prompt,
                 params=generation_params,
+                system_prompt=system_prompt,
                 reasoning_effort=self.reasoning_effort,
                 thinking_budget=self.model_config['default_params'].get('thinking_budget', 0) # setting to 0 for disabling reasoning 
             )
@@ -42,6 +44,8 @@ class Evaluator:
                 target_text = example.reference
             elif hasattr(example, 'answer'):
                 target_text = example.answer
+            elif hasattr(example, 'original_context'):  # AbsenceBench
+                target_text = example.omitted_context 
             else:
                 target_text = None
             
@@ -64,11 +68,14 @@ class Evaluator:
                 eval_type = example.eval_type
                 source_text = example.prompt
                 points = example.points
+            elif hasattr(example, 'original_context'):
+                source_text = example.original_context
+                eval_type = 'f1'
+                points = 1
             else:
                 source_text = None
                 eval_type = None
                 points = 1
-            
             return {
                 'id': example.id,
                 'source': source_text,
@@ -76,6 +83,7 @@ class Evaluator:
                 'reasoning': output['reasoning'],
                 'generation': output['generation'],
                 'raw_generation': output['raw_generation'],
+                'finish_reason': output.get('finish_reason'),
                 'target_text': target_text,
                 'eval_type': eval_type,
                 'points': points
@@ -168,6 +176,13 @@ class Evaluator:
                     'points': per_example_stats['points'][i],
                     'valid_format': per_example_stats['valid_formats'][i],
                     'extracted_answer': per_example_stats['extracted_answers'][i]
+                }
+        elif 'per_example_f1' in metrics.keys(): #AbsenceBench
+            per_example_f1 = metrics.pop('per_example_f1')
+            # Add scores to each raw output (now they're aligned by index)
+            for i, output in enumerate(raw_outputs):
+                output['scores'] = {
+                    'f1': per_example_f1[i],
                 }
         return {
             'metrics': metrics,

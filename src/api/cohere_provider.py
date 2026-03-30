@@ -8,13 +8,18 @@ class CohereAPIProvider(BaseProvider):
         super().__init__(config)
         self.client = AsyncClientV2(api_key=config['api_key'])
 
-    async def generate(self, model_id, prompt, params, reasoning_effort=None, thinking_budget=0):
+    async def generate(self, model_id, prompt, params, system_prompt=None, reasoning_effort=None, thinking_budget=0):
         """Generate completion using Cohere asynchronously"""
         
         async def _generate():
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+
             response = await self.client.chat(
                 model=model_id,
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 temperature=params.get('temperature', 0),
                 max_tokens=params.get('max_tokens', 12024),
                 p=params.get('top_p', 1),

@@ -1,3 +1,10 @@
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../third_party/PolyMath/eval"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../third_party/PolyMath"))
+
+from run_eval import extract_boxed_content
+from scripts import math_equal
+
 from datasets import load_dataset
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
@@ -13,6 +20,7 @@ import re
 import subprocess
 import tempfile
 import os
+from instruction import query_dic
 
 # ---------- Base Classes ----------
 
@@ -34,7 +42,12 @@ class BaseBenchmark(ABC):
     def prepare_prompt(self, example):
         """Prepare prompt for a single example"""
         pass
-    
+
+
+    def prepare_system_prompt(self):
+        """Prepare system prompt for a single example"""
+        return None
+
     @abstractmethod
     def evaluate(self, predictions, references, eval_types=None, points=None):
         """Evaluate predictions against references"""
@@ -89,6 +102,10 @@ class BenchmarkFactory:
             return FrontierMathBenchmark(task_config, subset)
         elif benchmark_type == 'flores200':
             return FLORES200Benchmark(task_config, subset)
+        elif benchmark_type == 'aime2025':
+            return AIME2025Benchmark(task_config, subset)
+        elif benchmark_type == 'absencebench':
+            return AbsenceBenchmark(task_config, subset)
         else:
             raise ValueError(f"Unknown benchmark: {benchmark_type}")
 
@@ -308,33 +325,92 @@ class PolyMathBenchmark(BaseBenchmark):
         """Prepare PolyMath prompt"""
         return (
             f"{example.question}\n"
-            f"{poly_math_instruction[self.subset]}\n\n"
+            f"{query_dic[self.subset]}\n\n"
         )
     
     def evaluate(self, predictions, references, eval_types=None, points=None):
         """Evaluate MMMLU predictions"""
         correct = 0
         total = len(predictions)
-        
-        extracted_predictions = [extract_boxed_answer(pred) for pred in predictions]
         scores = []
-        for pred, ref in zip(extracted_predictions, references):
-            if verify(ref, pred):
-                correct += 1
-                scores.append(1)
-            else:
-                scores.append(0)
-        
-        
-        accuracy = (correct / total * 100) if total > 0 else 0
-        
+
+        for pred_text, ref in zip(predictions, references):
+            normalized = normalize_latex(pred_text)
+            extracted = extract_boxed_content(normalized)
+            extracted = extracted[0] if extracted else None
+            is_correct = math_equal(extracted, ref)
+            correct += int(is_correct)
+            scores.append(1 if is_correct else 0)
+
+        accuracy = round(correct / total * 100, 1) if total > 0 else 0
+
         return {
             'accuracy': accuracy,
             'correct': correct,
             'total': total,
-            'per_example_accuracy': scores
+            'per_example_accuracy': scores,
+        }
+# ---------- AIME 2020 ---------
+@dataclass
+class AIMEExample:
+    id: str
+    question: str
+    answer: str
+
+
+class AIME2025Benchmark(BaseBenchmark):
+    """AIME 2025 - MathArena dataset"""
+
+    def load_data(self):
+        name = self.task_config['dataset_name']  # MathArena/aime_2025
+        split = self.task_config['split']        # train
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name}...")
+        ds = load_dataset(name, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            examples.append(AIMEExample(
+                id=f"aime2025_{i}",
+                question=r["problem"],
+                answer=str(r["answer"]),  # int in dataset, cast to str
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples")
+        return examples
+
+    def prepare_prompt(self, example):
+        return (
+            f"{example.question}\n"
+            f"Note: Please put the final answer in the $\\boxed{{}}$.\n\n"
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        correct = 0
+        total = len(predictions)
+        scores = []
+
+        for pred_text, ref in zip(predictions, references):
+            extracted = extract_boxed_answer(pred_text)
+            is_correct = verify(ref, extracted)
+            correct += int(is_correct)
+            scores.append(1 if is_correct else 0)
+
+        accuracy = round(correct / total * 100, 1) if total > 0 else 0
+
+        return {
+            'accuracy': accuracy,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
         }
 
+        
 # ---------- Linguini ----------
 
 @dataclass
@@ -673,6 +749,12 @@ mulr_instruction = {
     'en': "\n\nOnly generate your final response within square brackets [] without extra explanations.\n\n",
     'de': "\n\nGeben Sie Ihre endgültige Antwort ausschließlich in eckigen Klammern [] an, ohne zusätzliche Erläuterungen.\n\n",
     'zh': "\n\n请仅在方括号 [] 内填写最终答案，无需额外解释。\n\n",
+    'fr': "\n\nVeuillez générer votre réponse finale uniquement entre crochets [] sans explications supplémentaires.\n\n",
+    'ja': "\n\n角括弧 [] 内には、追加の説明を一切含めずに、最終的な回答のみを記述してください。\n\n",
+    'ko': "\n\n추가 설명 없이 최종 답변만 대괄호 [] 안에 작성해 주십시오.\n\n", 
+    'pt': "\n\nGere a sua resposta final apenas entre parêntesis rectos [] sem explicações adicionais.\n\n",
+    'es': "\n\nGenere su respuesta final únicamente dentro de los corchetes [] sin explicaciones adicionales.\n\n"
+
 
 }
 
@@ -728,7 +810,7 @@ class MuLRBenchmark(BaseBenchmark):
     
     def prepare_prompt(self, example):
         # This benchmark has prompts readily formatted.
-        return example.prompt 
+        return example.prompt + mulr_instruction[self.subset]
 
     def evaluate(self, predictions: List[str], references: List[str], eval_types: Optional[List[str]]=None, points: Optional[List[float]] =None) -> dict:
         """Evaluate using exact match (case-insensitive) and chrF score, weighted by points."""
@@ -765,7 +847,10 @@ class MuLRBenchmark(BaseBenchmark):
         for pred, ref, eval_type, point in zip(predictions, references, eval_types, points):
             pred_norm = pred.strip().lower()
             ref_norm  = ref.strip().lower()
-            model_answer, valid = extract_answer(pred_norm)
+            if len(pred_norm) > 0:
+                model_answer, valid = extract_answer(pred_norm)
+            else:
+                model_answer, valid = "", False
             valid_formats.append(valid)
             model_answers.append(model_answer)
 
@@ -1705,6 +1790,158 @@ class BelebeleBenchmark(BaseBenchmark):
     def load_data(self):
         name = self.task_config['dataset_name']
         split = self.task_config['split']
+# ---- AbsenceBench ----
+@dataclass
+class AbsenceBenchExample:
+    id: str
+    original_context: str
+    modified_context: str
+    omitted_context: list   # list of strings (poetry, github_prs)
+    omitted_index: list     # list of ints
+    metadata: dict
+
+ABSENCE_SYSTEM_PROMPTS = {
+    "poetry": (
+        "You are helping a student practice memorizing poems. \n"
+        "The student will recite a poem, but they may have missed some lines. \n"
+        "Your task is to identify exactly which lines are missing from their recitation.\n"
+        "List only the missing lines, nothing else."
+    ),
+    "numerical": (
+        "You are helping a student practice reciting sequences. \n"
+        "The student will recite a sequence, but they may have missed some numbers. \n"
+        "Your task is to identify exactly which numbers are missing from their recitation.\n"
+        "List only the missing numbers, nothing else."
+    ),
+    "github_prs": (
+        "You are helping a software developer determine if their merge"
+        " of a pull request was successful. "
+        "The developer had to edit the commit history and just wants to make sure"
+        " that they have not changed what will be merged. "
+        "They will list the changed lines. "
+        "Your job is to figure out if they have missed any "
+        "insertions or deletions from the original merge. "
+        "Only pay attention to the insertions and deletions (ignore the context of the diff)."
+    ),
+}
+
+# ── Official evaluate_response per domain ─────────────────────────────────────
+
+def evaluate_response_poetry(response: str, example: AbsenceBenchExample) -> dict:
+    """Exact port of test_llms_poetry.py evaluate_response (non-needle mode)."""
+    original_lines = example.original_context.split('\n')
+    omitted_indices = set(example.omitted_index)
+
+    tp, fp, fn = 0, 0, 0
+
+    for idx, line in enumerate(original_lines):
+        clean_line = line.strip().lower()
+        if clean_line and clean_line in response.lower():
+            if idx in omitted_indices:
+                tp += 1
+            else:
+                fp += 1
+        elif clean_line and clean_line not in response.lower():
+            if idx in omitted_indices:   # ← only count as FN if it was omitted
+                fn += 1
+
+    try:
+        micro_f1 = 2 * tp / (2 * tp + fp + fn)
+    except ZeroDivisionError:
+        micro_f1 = 0
+
+    if len(example.omitted_index) == 0:
+        micro_f1 = 1 - fp / len(original_lines)
+
+    return {"tp": tp, "fp": fp, "fn": fn, "micro_f1": micro_f1}
+
+
+def evaluate_response_numerical(response: str, example: AbsenceBenchExample) -> dict:
+    """Exact port of test_llms_numerical.py evaluate_response."""
+    og_sequence = example.original_context.split('\n')
+    omitted_indices = set(example.omitted_index)
+
+    tp, fp, fn = 0, 0, 0
+    response_lines = [x.strip() for x in response.split('\n')]
+
+    for idx, element in enumerate(og_sequence):
+        str_element = str(element)
+        if str_element in response_lines:
+            if idx in omitted_indices:
+                tp += 1
+            else:
+                fp += 1
+        else:
+            if idx in omitted_indices:
+                fn += 1
+
+    try:
+        micro_f1 = 2 * tp / (2 * tp + fp + fn)
+    except ZeroDivisionError:
+        micro_f1 = 0
+
+    if len(example.omitted_index) == 0:
+        micro_f1 = 1 - fp / len(og_sequence)
+
+    return {"tp": tp, "fp": fp, "fn": fn, "micro_f1": micro_f1}
+
+
+def evaluate_response_github(response: str, example: AbsenceBenchExample) -> dict:
+    """Exact port of test_llms_github_prs.py evaluate_response (non-needle mode)."""
+    original_lines = example.original_context.split('\n')
+    omitted_indices = set(example.omitted_index)
+
+    tp, fp, fn = 0, 0, 0
+
+    # handle repeated lines as FP
+    repeat_lines = list(set([l for l in original_lines if original_lines.count(l) != 1]))
+    for line in repeat_lines:
+        line_count = min(
+            response.lower().count("\n" + line.strip().lower() + "\n"),
+            original_lines.count(line)
+        )
+        fp += line_count
+
+    for idx, line in enumerate(original_lines):
+        if line in repeat_lines:
+            continue
+        clean_line = line.strip().lower()
+        if clean_line and clean_line in response.lower():
+            if idx in omitted_indices:
+                tp += 1
+            else:
+                fp += 1
+        elif clean_line and clean_line not in response.lower():
+            if idx in omitted_indices:   # ← only count as FN if it was omitted
+                fn += 1
+
+    try:
+        micro_f1 = 2 * tp / (2 * tp + fp + fn)
+    except ZeroDivisionError:
+        micro_f1 = 0
+
+    if len(example.omitted_index) == 0:
+        micro_f1 = 1 - fp / len(original_lines)
+
+    return {"tp": tp, "fp": fp, "fn": fn, "micro_f1": micro_f1}
+
+
+# ── Dispatcher ─────────────────────────────────────────────────────────────────
+
+EVALUATE_FN = {
+    "poetry":     evaluate_response_poetry,
+    "numerical":  evaluate_response_numerical,
+    "github_prs": evaluate_response_github,
+}
+
+class AbsenceBenchmark(BaseBenchmark):
+    """AbsenceBench: Language Models Can't Tell What's Missing
+    Subsets: poetry, numerical, github_prs
+    """
+
+    def load_data(self):
+        name  = self.task_config['dataset_name']  # harveyfin/AbsenceBench
+        split = self.task_config['split']         # validation
         limit = self.defaults.get('limit_per_subset')
 
         print(f"Loading {name} ({self.subset})...")
@@ -1726,6 +1963,13 @@ class BelebeleBenchmark(BaseBenchmark):
                 C=r["mc_answer3"],
                 D=r["mc_answer4"],
                 answer=correct_letter,
+            examples.append(AbsenceBenchExample(
+                id=f"{self.subset}_{i}",
+                original_context=r["original_context"],
+                modified_context=r["modified_context"],
+                omitted_context=r.get("omitted_context", []),
+                omitted_index=r["omitted_index"],
+                metadata=r.get("metadata", {}),
             ))
 
         self.dataset = examples
@@ -1895,4 +2139,67 @@ class GPQABenchmark(BaseBenchmark):
             'correct': correct,
             'total': total,
             'per_example_accuracy': scores,
+        if self.subset == "poetry":
+            return (
+                f"Here is the complete original poem:\n\n"
+                f"{example.original_context}\n\n"
+                f"Now, here is my recitation which may be missing some lines:\n\n"
+                f"{example.modified_context}\n\n"
+                f"What lines did I miss? Please list only the missing lines, nothing else."
+            )
+        elif self.subset == "numerical":
+            return (
+                f"Here is a sequence of numbers:\n\n"
+                f"{example.original_context}\n\n"
+                f"Now, here is my recitation of the sequence which may be missing some numbers:\n\n"
+                f"{example.modified_context}\n\n"
+                f"What numbers did I miss? Please list only the missing numbers, nothing else."
+            )
+        elif self.subset == "github_prs":
+            return (
+                f"Here is the complete original diff:\n\n"
+                f"{example.original_context}\n\n"
+                f"And here is the merge diff after the developer fixed the commit history:\n\n"
+                f"{example.modified_context}\n\n"
+                f"What changed lines (insertions or deletions) present "
+                f"in the original diff are missing in the merge diff (if any)?\n"
+                f"List only the missing changed lines, nothing else."
+            )
+
+    def prepare_system_prompt(self):
+        return ABSENCE_SYSTEM_PROMPTS[self.subset]
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        """
+        predictions: list of raw model output strings
+        references:  list of AbsenceBenchExample (passed through from runner)
+                     OR list of omitted_index lists — depends on your runner.
+        Note: we need the full example for evaluation, not just references.
+        So references here should be the list of AbsenceBenchExample objects.
+        """
+        evaluate_fn = EVALUATE_FN[self.subset]
+        total = len(predictions)
+
+        total_tp, total_fp, total_fn = 0, 0, 0
+        per_example_f1 = []
+
+        for pred_text, example in zip(predictions, self.dataset):
+            result = evaluate_fn(pred_text, example)
+            total_tp += result["tp"]
+            total_fp += result["fp"]
+            total_fn += result["fn"]
+            per_example_f1.append(result["micro_f1"])
+
+        macro_f1 = sum(per_example_f1) / total if total > 0 else 0.0
+
+        try:
+            micro_f1 = 2 * total_tp / (2 * total_tp + total_fp + total_fn)
+        except ZeroDivisionError:
+            micro_f1 = 0.0
+
+        return {
+            'f1':             round(macro_f1 * 100, 1),
+            'micro_f1':       round(micro_f1 * 100, 1),
+            'total':          total,
+            'per_example_f1': per_example_f1,
         }
