@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11"
 dependencies = [
+    "antlr4-python3-runtime==4.11.1",
     "cohere>=5.20.7",
     "datasets>=2.0,<3.0",
     "f>=0.0.1",
@@ -11,12 +12,15 @@ dependencies = [
     "hf>=1.8.0",
     "huggingface-hub[cli]>=1.8.0",
     "iso639>=0.1.4",
+    "langdetect>=1.0.9",
     "litellm>=1.82.6",
     "math-verify>=0.9.0",
     "openai>=2.30.0",
+    "pebble>=5.2.0",
     "python-dotenv>=1.2.2",
     "pyyaml>=6.0.3",
     "sacrebleu>=2.6.0",
     "together>=2.5.0",
     "tqdm>=4.67.3",
+    "word2number>=1.1",
 ]

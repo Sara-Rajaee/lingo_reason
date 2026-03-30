@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../
 from run_eval import extract_boxed_content
 from scripts import math_equal
 
-from datasets import load_dataset
+from datasets import load_dataset, get_dataset_config_names
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 from typing import List, Optional
@@ -1783,7 +1783,7 @@ class XNLIBenchmark(BaseBenchmark):
 
 # ---------- Belebele ----------
 
-_NUM_TO_LETTER = {1: "A", 2: "B", 3: "C", 4: "D"}
+_NUM_TO_LETTER = {1: "A", 2: "B", 3: "C", 4: "D", "1": "A", "2": "B", "3": "C", "4": "D"}
 
 
 @dataclass
@@ -1805,6 +1805,59 @@ class BelebeleBenchmark(BaseBenchmark):
     def load_data(self):
         name = self.task_config['dataset_name']
         split = self.task_config['split']
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        ds = load_dataset(name, self.subset, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            correct_letter = _NUM_TO_LETTER[r["correct_answer_num"]]
+            examples.append(BelebeleExample(
+                id=f"{self.subset}_{i}",
+                question=f"{r['flores_passage']}\n{r['question']}",
+                passage=r["flores_passage"],
+                q=r["question"],
+                A=r["mc_answer1"],
+                B=r["mc_answer2"],
+                C=r["mc_answer3"],
+                D=r["mc_answer4"],
+                answer=correct_letter,
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        return (
+            f"Read the passage and answer the question by selecting the correct option.\n\n"
+            f"Passage: {example.passage}\n\n"
+            f"Question: {example.q}\n"
+            f"A) {example.A}\nB) {example.B}\nC) {example.C}\nD) {example.D}\n\n"
+            "Answer with only the letter (A, B, C, or D)."
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        correct = 0
+        scores = []
+        for pred, ref in zip(predictions, references):
+            extracted = extract_choice(pred).upper()
+            match = int(extracted == ref.strip().upper())
+            scores.append(match)
+            correct += match
+        total = len(predictions)
+        return {
+            'accuracy': (correct / total * 100) if total > 0 else 0,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
+        }
+
+
 # ---- AbsenceBench ----
 @dataclass
 class AbsenceBenchExample:
@@ -1967,17 +2020,6 @@ class AbsenceBenchmark(BaseBenchmark):
 
         examples = []
         for i, r in enumerate(ds):
-            correct_letter = _NUM_TO_LETTER[r["correct_answer_num"]]
-            examples.append(BelebeleExample(
-                id=f"{self.subset}_{i}",
-                question=f"{r['flores_passage']}\n{r['question']}",
-                passage=r["flores_passage"],
-                q=r["question"],
-                A=r["mc_answer1"],
-                B=r["mc_answer2"],
-                C=r["mc_answer3"],
-                D=r["mc_answer4"],
-                answer=correct_letter,
             examples.append(AbsenceBenchExample(
                 id=f"{self.subset}_{i}",
                 original_context=r["original_context"],
@@ -1992,28 +2034,69 @@ class AbsenceBenchmark(BaseBenchmark):
         return examples
 
     def prepare_prompt(self, example):
-        return (
-            f"Read the passage and answer the question by selecting the correct option.\n\n"
-            f"Passage: {example.passage}\n\n"
-            f"Question: {example.q}\n"
-            f"A) {example.A}\nB) {example.B}\nC) {example.C}\nD) {example.D}\n\n"
-            "Answer with only the letter (A, B, C, or D)."
-        )
+        if self.subset == "poetry":
+            return (
+                f"Here is the complete original poem:\n\n"
+                f"{example.original_context}\n\n"
+                f"Now, here is my recitation which may be missing some lines:\n\n"
+                f"{example.modified_context}\n\n"
+                f"What lines did I miss? Please list only the missing lines, nothing else."
+            )
+        elif self.subset == "numerical":
+            return (
+                f"Here is a sequence of numbers:\n\n"
+                f"{example.original_context}\n\n"
+                f"Now, here is my recitation of the sequence which may be missing some numbers:\n\n"
+                f"{example.modified_context}\n\n"
+                f"What numbers did I miss? Please list only the missing numbers, nothing else."
+            )
+        elif self.subset == "github_prs":
+            return (
+                f"Here is the complete original diff:\n\n"
+                f"{example.original_context}\n\n"
+                f"And here is the merge diff after the developer fixed the commit history:\n\n"
+                f"{example.modified_context}\n\n"
+                f"What changed lines (insertions or deletions) present "
+                f"in the original diff are missing in the merge diff (if any)?\n"
+                f"List only the missing changed lines, nothing else."
+            )
+
+    def prepare_system_prompt(self):
+        return ABSENCE_SYSTEM_PROMPTS[self.subset]
 
     def evaluate(self, predictions, references, eval_types=None, points=None):
-        correct = 0
-        scores = []
-        for pred, ref in zip(predictions, references):
-            extracted = extract_choice(pred).upper()
-            match = int(extracted == ref.strip().upper())
-            scores.append(match)
-            correct += match
+        """
+        predictions: list of raw model output strings
+        references:  list of AbsenceBenchExample (passed through from runner)
+                     OR list of omitted_index lists — depends on your runner.
+        Note: we need the full example for evaluation, not just references.
+        So references here should be the list of AbsenceBenchExample objects.
+        """
+        evaluate_fn = EVALUATE_FN[self.subset]
         total = len(predictions)
+
+        total_tp, total_fp, total_fn = 0, 0, 0
+        per_example_f1 = []
+
+        for pred_text, example in zip(predictions, self.dataset):
+            result = evaluate_fn(pred_text, example)
+            total_tp += result["tp"]
+            total_fp += result["fp"]
+            total_fn += result["fn"]
+            per_example_f1.append(result["micro_f1"])
+
+        macro_f1 = sum(per_example_f1) / total if total > 0 else 0.0
+
+        try:
+            micro_f1 = 2 * total_tp / (2 * total_tp + total_fp + total_fn)
+        except ZeroDivisionError:
+            micro_f1 = 0.0
+
         return {
-            'accuracy': (correct / total * 100) if total > 0 else 0,
-            'correct': correct,
-            'total': total,
-            'per_example_accuracy': scores,
+            'f1':             round(macro_f1 * 100, 1),
+            'micro_f1':       round(micro_f1 * 100, 1),
+            'total':          total,
+            'per_example_f1': per_example_f1,
         }
 
 
@@ -2154,67 +2237,4 @@ class GPQABenchmark(BaseBenchmark):
             'correct': correct,
             'total': total,
             'per_example_accuracy': scores,
-        if self.subset == "poetry":
-            return (
-                f"Here is the complete original poem:\n\n"
-                f"{example.original_context}\n\n"
-                f"Now, here is my recitation which may be missing some lines:\n\n"
-                f"{example.modified_context}\n\n"
-                f"What lines did I miss? Please list only the missing lines, nothing else."
-            )
-        elif self.subset == "numerical":
-            return (
-                f"Here is a sequence of numbers:\n\n"
-                f"{example.original_context}\n\n"
-                f"Now, here is my recitation of the sequence which may be missing some numbers:\n\n"
-                f"{example.modified_context}\n\n"
-                f"What numbers did I miss? Please list only the missing numbers, nothing else."
-            )
-        elif self.subset == "github_prs":
-            return (
-                f"Here is the complete original diff:\n\n"
-                f"{example.original_context}\n\n"
-                f"And here is the merge diff after the developer fixed the commit history:\n\n"
-                f"{example.modified_context}\n\n"
-                f"What changed lines (insertions or deletions) present "
-                f"in the original diff are missing in the merge diff (if any)?\n"
-                f"List only the missing changed lines, nothing else."
-            )
-
-    def prepare_system_prompt(self):
-        return ABSENCE_SYSTEM_PROMPTS[self.subset]
-
-    def evaluate(self, predictions, references, eval_types=None, points=None):
-        """
-        predictions: list of raw model output strings
-        references:  list of AbsenceBenchExample (passed through from runner)
-                     OR list of omitted_index lists — depends on your runner.
-        Note: we need the full example for evaluation, not just references.
-        So references here should be the list of AbsenceBenchExample objects.
-        """
-        evaluate_fn = EVALUATE_FN[self.subset]
-        total = len(predictions)
-
-        total_tp, total_fp, total_fn = 0, 0, 0
-        per_example_f1 = []
-
-        for pred_text, example in zip(predictions, self.dataset):
-            result = evaluate_fn(pred_text, example)
-            total_tp += result["tp"]
-            total_fp += result["fp"]
-            total_fn += result["fn"]
-            per_example_f1.append(result["micro_f1"])
-
-        macro_f1 = sum(per_example_f1) / total if total > 0 else 0.0
-
-        try:
-            micro_f1 = 2 * total_tp / (2 * total_tp + total_fp + total_fn)
-        except ZeroDivisionError:
-            micro_f1 = 0.0
-
-        return {
-            'f1':             round(macro_f1 * 100, 1),
-            'micro_f1':       round(micro_f1 * 100, 1),
-            'total':          total,
-            'per_example_f1': per_example_f1,
         }
