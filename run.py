@@ -48,7 +48,12 @@ async def evaluate_task_subset(model, provider_config, task_name, task_config, s
 async def evaluate_task(model, provider_config, task_name, task_config, concurrency=5):
     """Evaluate a model on all subsets of a task"""
     subsets = task_config.get('subsets', [])
-    
+
+    if subsets in ('all', '__all__'):
+        print(f"Discovering all subsets for {task_name}...")
+        subsets = BenchmarkFactory.get_all_subsets(task_config['benchmark_type'], task_config)
+        print(f"Found {len(subsets)} subsets.")
+
     if not subsets:
         print(f"No subsets defined for task: {task_name}")
         return []
@@ -134,7 +139,10 @@ def list_available_options(models_config, tasks_config):
     print("="*60)
     for task_name, task_config in tasks_config['tasks'].items():
         subsets = task_config.get('subsets', [])
-        print(f"  - {task_name:20} ({len(subsets)} subsets: {', '.join(subsets[:3])}{'...' if len(subsets) > 3 else ''})")
+        if isinstance(subsets, str):
+            print(f"  - {task_name:20} (subsets: {subsets})")
+        else:
+            print(f"  - {task_name:20} ({len(subsets)} subsets: {', '.join(subsets[:3])}{'...' if len(subsets) > 3 else ''})")
     print()
 
 async def main():

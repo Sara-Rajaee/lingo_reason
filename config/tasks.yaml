@@ -1,4 +1,15 @@
 tasks:
+  linguini:
+    benchmark_type: "linguini"
+    dataset_name: "facebook/linguini"
+    split: "test"
+    subsets: ["default"]
+    defaults:
+      batch_size: 64
+      max_new_tokens: 8192
+      temperature: 0.0
+      top_p: 1.0
+
   mmmlu:
     benchmark_type: "mmmlu"
     dataset_name: "CohereLabs/Global-MMLU-Lite"
@@ -48,6 +59,180 @@ tasks:
       temperature: 0.0
       top_p: 1.0
       limit_per_subset: 90
+
+  mgsm:
+    benchmark_type: "mgsm"
+    dataset_name: "juletxara/mgsm"
+    split: "test"
+    subsets: ["bn", "de", "en", "es", "fr", "ja", "ru", "sw", "te", "th", "zh"]
+    defaults:
+      batch_size: 64
+      max_new_tokens: 2048
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: 250
+
+  xcopa:
+    benchmark_type: "xcopa"
+    dataset_name: "xcopa"
+    split: "test"
+    subsets: ["et", "ht", "id", "it", "qu", "sw", "ta", "th", "tr", "vi", "zh"]
+    defaults:
+      batch_size: 64
+      max_new_tokens: 512
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: 500
+
+  xstory_cloze:
+    benchmark_type: "xstory_cloze"
+    dataset_name: "juletxara/xstory_cloze"
+    split: "eval"
+    subsets: ["ar", "es", "eu", "hi", "id", "my", "ru", "sw", "te", "zh"]
+    defaults:
+      batch_size: 64
+      max_new_tokens: 512
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: 1511
+
+  americas_nli:
+    benchmark_type: "americas_nli"
+    dataset_name: "americas_nli"
+    split: "test"
+    subsets: ["aym", "bzd", "cni", "gn", "hch", "nah", "oto", "quy", "shp", "tar"]
+    defaults:
+      batch_size: 64
+      max_new_tokens: 512
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: 804
+
+  sib200:
+    benchmark_type: "sib200"
+    dataset_name: "Davlan/sib200"
+    split: "test"
+    subsets: "all"
+    defaults:
+      batch_size: 64
+      max_new_tokens: 256
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: 204
+
+  mkqa:
+    benchmark_type: "mkqa"
+    dataset_name: "mkqa"
+    split: "train"
+    subsets: ["en", "ar", "zh_cn", "zh_hk", "zh_tw", "da", "de", "es", "fi",
+              "fr", "hu", "it", "ja", "ko", "nl", "no", "pl", "pt", "ru",
+              "sv", "th", "tr", "vi", "ms", "km", "he"]
+    defaults:
+      batch_size: 64
+      max_new_tokens: 512
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: 500
+
+  aime:
+    benchmark_type: "aime"
+    dataset_name: "Maxwell-Jia/AIME_2024"
+    split: "train"
+    subsets: ["en"]
+    defaults:
+      batch_size: 16
+      max_new_tokens: 16384
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: 30
+
+  livecodebench:
+    benchmark_type: "livecodebench"
+    dataset_name: "livecodebench/code_generation_lite"
+    split: "test"
+    subsets: ["en"]
+    defaults:
+      batch_size: 8
+      max_new_tokens: 8192
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: 400
+
+  frontiermath:
+    benchmark_type: "frontiermath"
+    dataset_name: "EleutherAI/frontiermath"
+    split: "test"
+    subsets: ["en"]
+    defaults:
+      batch_size: 8
+      max_new_tokens: 32768
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: 200
+
+  flores200:
+    benchmark_type: "flores200"
+    dataset_name: "Muennighoff/flores200"
+    split: "devtest"
+    subsets: "all"
+    defaults:
+      batch_size: 64
+      max_new_tokens: 512
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: 1012
+      src_lang: "eng_Latn"
+      include_comet: false
+
+  xnli:
+    benchmark_type: "xnli"
+    dataset_name: "xnli"
+    split: "test"
+    subsets: ["ar", "bg", "de", "el", "en", "es", "fr", "hi", "ru", "sw", "th", "tr", "ur", "vi", "zh"]
+    defaults:
+      batch_size: 64
+      max_new_tokens: 16
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: 400
+
+  belebele:
+    benchmark_type: "belebele"
+    dataset_name: "facebook/belebele"
+    split: "test"
+    subsets: ["eng_Latn", "arb_Arab", "zho_Hans", "deu_Latn", "ben_Beng", "fra_Latn",
+              "hin_Deva", "swh_Latn", "jpn_Jpan", "kor_Hang", "rus_Cyrl", "spa_Latn",
+              "por_Latn", "ita_Latn", "tur_Latn", "vie_Latn", "ind_Latn", "tha_Thai",
+              "pol_Latn", "nld_Latn", "ron_Latn", "ukr_Cyrl", "ces_Latn", "fin_Latn"]
+    defaults:
+      batch_size: 64
+      max_new_tokens: 16
+      temperature: 0.0
+      top_p: 1.0
+      limit_per_subset: 900
+
+  # olympiad_bench:
+  #   benchmark_type: "olympiad_bench"
+  #   dataset_name: "GAIR/OlympiadBench"
+  #   split: "test"
+  #   subsets: ["en", "zh"]
+  #   defaults:
+  #     batch_size: 32
+  #     max_new_tokens: 8192
+  #     temperature: 0.0
+  #     top_p: 1.0
+  #     limit_per_subset: 400
+
+  gpqa:
+    benchmark_type: "gpqa"
+    dataset_name: "Idavidrein/gpqa"
+    split: "train"
+    subsets: ["gpqa_diamond"]
+    defaults:
+      batch_size: 32
+      max_new_tokens: 8192
+      temperature: 0.0
+      top_p: 1.0
 
   aime2025:
     benchmark_type: "aime2025"

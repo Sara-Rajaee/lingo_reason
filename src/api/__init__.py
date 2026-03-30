@@ -1,21 +1,19 @@
-from .together_provider import TogetherAIProvider
-from .gemini_provider import GeminiProvider
-from .openai_provider import OpenAIProvider
-from .cohere_provider import CohereAPIProvider
-from .gpt_oss_provider import GptOssProvider
-
 class ProviderFactory:
-    _providers = {
-        'together_ai': TogetherAIProvider,
-        'gemini': GeminiProvider,
-        'openai': OpenAIProvider,
-        'cohere': CohereAPIProvider,
-        'gpt_oss': GptOssProvider,
+    _provider_paths = {
+        'together_ai': ('.together_provider', 'TogetherAIProvider'),
+        'gemini': ('.gemini_provider', 'GeminiProvider'),
+        'openai': ('.openai_provider', 'OpenAIProvider'),
+        'cohere': ('.cohere_provider', 'CohereAPIProvider'),
+        'gpt_oss': ('.gpt_oss_provider', 'GptOssProvider'),
     }
 
     @staticmethod
     def get_provider(provider_name, config):
-        provider_class = ProviderFactory._providers.get(provider_name)
-        if not provider_class:
+        entry = ProviderFactory._provider_paths.get(provider_name)
+        if not entry:
             raise ValueError(f"Unknown provider: {provider_name}")
+        module_path, class_name = entry
+        from importlib import import_module
+        module = import_module(module_path, package='src.api')
+        provider_class = getattr(module, class_name)
         return provider_class(config)

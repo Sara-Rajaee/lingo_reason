@@ -9,12 +9,18 @@ def load_config(config_path):
     with open(config_path, 'r') as f:
         content = f.read()
     
-    # Replace ${VAR} with environment variable values
+    # Replace ${VAR} or ${VAR:-default} with environment variable values
     def replace_env_var(match):
         var_name = match.group(1)
-        return os.getenv(var_name, match.group(0))
-    
-    content = re.sub(r'\$\{(\w+)\}', replace_env_var, content)
+        default_value = match.group(2)
+        value = os.getenv(var_name)
+        if value is not None:
+            return value
+        if default_value is not None:
+            return default_value
+        return match.group(0)
+
+    content = re.sub(r'\$\{(\w+)(?::-([^}]*))?\}', replace_env_var, content)
     
     return yaml.safe_load(content)
 

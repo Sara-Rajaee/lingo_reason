@@ -5,15 +5,21 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../
 from run_eval import extract_boxed_content
 from scripts import math_equal
 
-from datasets import load_dataset
+from datasets import load_dataset, get_dataset_config_names
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 from typing import List, Optional
 import sacrebleu
 import iso639
 #from comet import download_model, load_from_checkpoint
-from math_verify import parse, StringExtractionConfig, LatexExtractionConfig, verify
+try:
+    from math_verify import parse, StringExtractionConfig, LatexExtractionConfig, verify
+except ImportError:
+    parse = StringExtractionConfig = LatexExtractionConfig = verify = None
 import re
+import subprocess
+import tempfile
+import os
 from instruction import query_dic
 
 # ---------- Base Classes ----------
@@ -68,12 +74,53 @@ class BenchmarkFactory:
             return LinguiniBenchmark(task_config, subset)
         elif benchmark_type == 'mulr':
             return MuLRBenchmark(task_config, subset)
+        elif benchmark_type == 'mgsm':
+            return MGSMBenchmark(task_config, subset)
+        elif benchmark_type == 'xcopa':
+            return XCOPABenchmark(task_config, subset)
+        elif benchmark_type == 'xstory_cloze':
+            return XStoryCloze(task_config, subset)
+        elif benchmark_type == 'xnli':
+            return XNLIBenchmark(task_config, subset)
+        elif benchmark_type == 'americas_nli':
+            return AmericasNLIBenchmark(task_config, subset)
+        elif benchmark_type == 'sib200':
+            return SIB200Benchmark(task_config, subset)
+        elif benchmark_type == 'belebele':
+            return BelebeleBenchmark(task_config, subset)
+        elif benchmark_type == 'mkqa':
+            return MKQABenchmark(task_config, subset)
+        elif benchmark_type == 'aime':
+            return AIMEBenchmark(task_config, subset)
+        elif benchmark_type == 'olympiad_bench':
+            return OlympiadBenchBenchmark(task_config, subset)
+        elif benchmark_type == 'gpqa':
+            return GPQABenchmark(task_config, subset)
+        elif benchmark_type == 'livecodebench':
+            return LiveCodeBenchBenchmark(task_config, subset)
+        elif benchmark_type == 'frontiermath':
+            return FrontierMathBenchmark(task_config, subset)
+        elif benchmark_type == 'flores200':
+            return FLORES200Benchmark(task_config, subset)
         elif benchmark_type == 'aime2025':
             return AIME2025Benchmark(task_config, subset)
         elif benchmark_type == 'absencebench':
             return AbsenceBenchmark(task_config, subset)
         else:
             raise ValueError(f"Unknown benchmark: {benchmark_type}")
+
+    @staticmethod
+    def get_all_subsets(benchmark_type, task_config):
+        """Return all available subsets for benchmarks that use subsets: 'all'."""
+        dataset_name = task_config['dataset_name']
+        if benchmark_type == 'flores200':
+            src_lang = task_config['defaults'].get('src_lang', 'eng_Latn')
+            configs = get_dataset_config_names(dataset_name)
+            return [c for c in configs if c != src_lang]
+        elif benchmark_type == 'sib200':
+            return get_dataset_config_names(dataset_name)
+        else:
+            return get_dataset_config_names(dataset_name)
 
 
 # ---------- MMMLU ----------
@@ -378,6 +425,11 @@ class LinguiniExample:
     eval_type: str
 
 
+def _chrf(hypothesis, reference):
+    """Compute sentence-level chrF score."""
+    return sacrebleu.sentence_chrf(hypothesis, [reference]).score / 100.0
+
+
 class LinguiniBenchmark(BaseBenchmark):
     """Linguini benchmark for language-agnostic linguistic reasoning.
 
@@ -407,26 +459,35 @@ class LinguiniBenchmark(BaseBenchmark):
 
         examples = []
         for problem in ds:
-            # Each row is a full problem with (potentially) multiple questions.
-            # Field names below reflect the most likely schema; adjust if needed.
-            problem_id   = str(problem.get('problem_id', problem.get('id', '')))
-            context      = problem.get('context', problem.get('context', ''))
-            task_type    = problem.get('task_type', problem.get('task_type', 'unknown'))
-            task_lang    = problem.get('task_lang', problem.get('task_lang', 'unknown'))
+            problem_id   = str(problem.get('id', ''))
+            context      = problem.get('context', '')
+            task_type    = problem.get('task_type', 'unknown')
+            task_lang    = problem.get('task_lang', 'unknown')
 
-            # Questions and answers are stored as parallel lists inside each row.
-            query = problem.get('query', [])
-            answers   = problem.get('answers', [])
+            query = problem.get('query', '')
+            answer_raw = problem.get('answer', '')
+            eval_type = problem.get('eval_type', 'single')
 
-        
+            # Parse answer: stored as string repr of a list, e.g. "['a', 'b']"
+            try:
+                import ast
+                answer_list = ast.literal_eval(answer_raw)
+                if isinstance(answer_list, list):
+                    answer = '\n'.join(str(a).strip() for a in answer_list)
+                else:
+                    answer = str(answer_list).strip()
+            except (ValueError, SyntaxError):
+                answer = str(answer_raw).strip()
+
             examples.append(LinguiniExample(
-                id=f"{problem_id}_q{q_idx}",
+                id=problem_id,
                 context=context,
-                question=q,
-                answer=str(a).strip(),
+                question=query,
+                answer=str(answer).strip(),
                 task_type=task_type,
                 task_lang=task_lang,
                 problem_id=problem_id,
+                eval_type=eval_type,
             ))
 
         self.dataset = examples
@@ -461,8 +522,9 @@ class LinguiniBenchmark(BaseBenchmark):
         chrf_scores = []
 
         for pred, ref in zip(predictions, references):
-            pred_norm = pred.strip().lower()
-            ref_norm  = ref.strip().lower()
+            # Normalize whitespace: collapse newlines/spaces for comparison
+            pred_norm = ' '.join(pred.strip().lower().split())
+            ref_norm  = ' '.join(ref.strip().lower().split())
 
             # Exact match
             match = int(pred_norm == ref_norm)
@@ -734,7 +796,7 @@ class MuLRBenchmark(BaseBenchmark):
 
         # Select language.        
         def select_language(example):
-            return iso639.Language.from_name(example['problem_language']).part1 == self.subset 
+            return iso639.to_iso639_1(example['problem_language']) == self.subset 
         
         ds = ds.filter(select_language)
 
@@ -822,6 +884,979 @@ class MuLRBenchmark(BaseBenchmark):
                 "extracted_answers": model_answers
             },
         }
+
+
+# ---------- Shared helpers for new benchmarks ----------
+
+def extract_binary_choice(text):
+    """Extract 1 or 2 from model output (XCOPA, XStoryCloze)."""
+    for char in text.strip():
+        if char in "12":
+            return char
+    return ""
+
+
+def extract_integer_answer(text):
+    """Extract the last integer from model output (MGSM)."""
+    matches = re.findall(r'-?\d+', text.replace(',', ''))
+    return matches[-1] if matches else ""
+
+
+def extract_nli_label(text):
+    """Extract NLI label from model output (AmericasNLI)."""
+    text_lower = text.strip().lower()
+    for label in ["entailment", "contradiction", "neutral"]:
+        if label in text_lower:
+            return label
+    return ""
+
+
+def extract_sib200_topic(text):
+    """Extract SIB-200 topic category from model output."""
+    text_lower = text.strip().lower()
+    for topic in ["science_technology", "travel", "politics",
+                  "sports", "health", "entertainment", "geography"]:
+        if topic in text_lower:
+            return topic
+    return ""
+
+
+def extract_code_block(text):
+    """Strip markdown code fences from model output (LiveCodeBench)."""
+    match = re.search(r'```(?:python)?\s*\n(.*?)```', text, re.DOTALL)
+    return match.group(1) if match else text
+
+
+def extract_aime_answer(text):
+    """Extract integer answer for AIME, trying \\boxed{} first."""
+    boxed = extract_boxed_answer(text)
+    if boxed:
+        try:
+            val = re.sub(r'[^\d-]', '', str(boxed[0]) if isinstance(boxed, list) else str(boxed))
+            return str(int(val)) if val else ""
+        except Exception:
+            pass
+    matches = re.findall(r'\b(\d{1,3})\b', text)
+    return matches[-1] if matches else ""
+
+
+def _run_python_code(code, test_input, timeout=10):
+    """Execute Python code with given stdin; return stdout or error sentinel."""
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        f.write(code)
+        fname = f.name
+    try:
+        result = subprocess.run(
+            ["python3", fname], input=test_input,
+            capture_output=True, text=True, timeout=timeout
+        )
+        return result.stdout.strip()
+    except subprocess.TimeoutExpired:
+        return "__TIMEOUT__"
+    except Exception:
+        return "__ERROR__"
+    finally:
+        os.unlink(fname)
+
+
+# ---------- MGSM ----------
+
+@dataclass
+class MGSMExample:
+    id: str
+    question: str
+    answer: str
+
+
+class MGSMBenchmark(BaseBenchmark):
+    """Multilingual Grade School Math benchmark (juletxara/mgsm)."""
+
+    def load_data(self):
+        name = self.task_config['dataset_name']
+        split = self.task_config['split']
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        ds = load_dataset(name, self.subset, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            examples.append(MGSMExample(
+                id=f"{self.subset}_{i}",
+                question=r["question"],
+                answer=str(r["answer_number"]),
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        return (
+            "Solve the following math problem step by step. "
+            "At the end, write only the final integer answer on the last line.\n\n"
+            f"{example.question}\n\n"
+            "Answer:"
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        correct = 0
+        scores = []
+        for pred, ref in zip(predictions, references):
+            extracted = extract_integer_answer(pred)
+            match = int(extracted == ref.strip())
+            scores.append(match)
+            correct += match
+        total = len(predictions)
+        return {
+            'accuracy': (correct / total * 100) if total > 0 else 0,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
+        }
+
+
+# ---------- XCOPA ----------
+
+@dataclass
+class XCOPAExample:
+    id: str
+    premise: str
+    choice1: str
+    choice2: str
+    question: str   # "cause" or "effect"
+    answer: str     # "1" or "2"
+
+
+class XCOPABenchmark(BaseBenchmark):
+    """Cross-lingual Choice Of Plausible Alternatives (xcopa)."""
+
+    def load_data(self):
+        name = self.task_config['dataset_name']
+        split = self.task_config['split']
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        ds = load_dataset(name, self.subset, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            examples.append(XCOPAExample(
+                id=f"{self.subset}_{i}",
+                premise=r["premise"],
+                choice1=r["choice1"],
+                choice2=r["choice2"],
+                question=r["question"],
+                answer=str(r["label"] + 1),  # 0-indexed → "1" or "2"
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        connector = (
+            "What was the CAUSE of this?"
+            if example.question == "cause"
+            else "What happened as a RESULT?"
+        )
+        return (
+            f"Premise: {example.premise}\n"
+            f"{connector}\n\n"
+            f"Choice 1: {example.choice1}\n"
+            f"Choice 2: {example.choice2}\n\n"
+            "Answer with only the number 1 or 2."
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        correct = 0
+        scores = []
+        for pred, ref in zip(predictions, references):
+            extracted = extract_binary_choice(pred)
+            match = int(extracted == ref.strip())
+            scores.append(match)
+            correct += match
+        total = len(predictions)
+        return {
+            'accuracy': (correct / total * 100) if total > 0 else 0,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
+        }
+
+
+# ---------- XStoryCloze ----------
+
+@dataclass
+class XStoryClozeExample:
+    id: str
+    context: str
+    choice1: str
+    choice2: str
+    question: str   # constant sentinel for eval.py routing
+    answer: str     # "1" or "2"
+
+
+class XStoryCloze(BaseBenchmark):
+    """Cross-lingual Story Cloze benchmark (juletxara/xstory_cloze)."""
+
+    def load_data(self):
+        name = self.task_config['dataset_name']
+        split = self.task_config['split']
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        ds = load_dataset(name, self.subset, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            context = " ".join([
+                r["input_sentence_1"], r["input_sentence_2"],
+                r["input_sentence_3"], r["input_sentence_4"],
+            ])
+            examples.append(XStoryClozeExample(
+                id=f"{self.subset}_{i}",
+                context=context,
+                choice1=r["sentence_quiz1"],
+                choice2=r["sentence_quiz2"],
+                question="story_cloze",
+                answer=str(r["answer_right_ending"]),  # already 1 or 2
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        return (
+            "Read the following story and choose the best ending sentence.\n\n"
+            f"Story: {example.context}\n\n"
+            f"Ending 1: {example.choice1}\n"
+            f"Ending 2: {example.choice2}\n\n"
+            "Answer with only the number 1 or 2."
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        correct = 0
+        scores = []
+        for pred, ref in zip(predictions, references):
+            extracted = extract_binary_choice(pred)
+            match = int(extracted == ref.strip())
+            scores.append(match)
+            correct += match
+        total = len(predictions)
+        return {
+            'accuracy': (correct / total * 100) if total > 0 else 0,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
+        }
+
+
+# ---------- AmericasNLI ----------
+
+_NLI_LABEL_MAP = {0: "entailment", 1: "neutral", 2: "contradiction"}
+
+
+@dataclass
+class AmericasNLIExample:
+    id: str
+    premise: str
+    hypothesis: str
+    question: str   # constant sentinel
+    answer: str     # "entailment", "neutral", or "contradiction"
+
+
+class AmericasNLIBenchmark(BaseBenchmark):
+    """Natural Language Inference for indigenous American languages (americas_nli)."""
+
+    def load_data(self):
+        name = self.task_config['dataset_name']
+        split = self.task_config['split']
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        ds = load_dataset(name, self.subset, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            examples.append(AmericasNLIExample(
+                id=f"{self.subset}_{i}",
+                premise=r["premise"],
+                hypothesis=r["hypothesis"],
+                question="nli",
+                answer=_NLI_LABEL_MAP[r["label"]],
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        return (
+            "Determine the logical relationship between the following two sentences.\n\n"
+            f"Premise: {example.premise}\n"
+            f"Hypothesis: {example.hypothesis}\n\n"
+            "Does the premise entail, contradict, or is neutral towards the hypothesis?\n"
+            "Answer with only one word: entailment, neutral, or contradiction."
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        correct = 0
+        scores = []
+        for pred, ref in zip(predictions, references):
+            extracted = extract_nli_label(pred)
+            match = int(extracted == ref.strip())
+            scores.append(match)
+            correct += match
+        total = len(predictions)
+        return {
+            'accuracy': (correct / total * 100) if total > 0 else 0,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
+        }
+
+
+# ---------- SIB-200 ----------
+
+_SIB200_TOPICS = [
+    "science_technology", "travel", "politics",
+    "sports", "health", "entertainment", "geography",
+]
+
+
+@dataclass
+class SIB200Example:
+    id: str
+    text: str
+    question: str   # constant sentinel
+    answer: str     # one of 7 topic strings
+
+
+class SIB200Benchmark(BaseBenchmark):
+    """Topic classification across 200 languages (Davlan/sib200)."""
+
+    def load_data(self):
+        name = self.task_config['dataset_name']
+        split = self.task_config['split']
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        ds = load_dataset(name, self.subset, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            examples.append(SIB200Example(
+                id=f"{self.subset}_{i}",
+                text=r["text"],
+                question="topic_classification",
+                answer=r["category"],
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        topics = ", ".join(_SIB200_TOPICS)
+        return (
+            f"Classify the following text into one of these topics:\n{topics}\n\n"
+            f"Text: {example.text}\n\n"
+            "Answer with only the topic name."
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        correct = 0
+        scores = []
+        for pred, ref in zip(predictions, references):
+            extracted = extract_sib200_topic(pred)
+            match = int(extracted == ref.strip())
+            scores.append(match)
+            correct += match
+        total = len(predictions)
+        return {
+            'accuracy': (correct / total * 100) if total > 0 else 0,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
+        }
+
+
+# ---------- MKQA ----------
+
+@dataclass
+class MKQAExample:
+    id: str
+    question: str
+    answer: str     # pipe-delimited gold answers, or "__NULL__" if unanswerable
+
+
+class MKQABenchmark(BaseBenchmark):
+    """Multilingual Knowledge Questions and Answers (mkqa)."""
+
+    def load_data(self):
+        name = self.task_config['dataset_name']
+        split = self.task_config['split']
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        ds = load_dataset(name, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            lang_answers = r["answers"].get(self.subset, [])
+            all_texts = []
+            for ans in lang_answers:
+                if ans.get("text"):
+                    all_texts.append(ans["text"])
+                all_texts.extend(ans.get("aliases", []))
+            all_texts = [t for t in all_texts if t]
+
+            examples.append(MKQAExample(
+                id=f"{self.subset}_{i}",
+                question=r["query"],
+                answer="|".join(all_texts) if all_texts else "__NULL__",
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        return (
+            "Answer the following question briefly. "
+            "If you cannot answer, write \"unanswerable\".\n\n"
+            f"Question: {example.question}\n\n"
+            "Answer:"
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        _NULL_INDICATORS = {"unanswerable", "none", "unknown", "n/a", ""}
+        correct = 0
+        scores = []
+        for pred, ref in zip(predictions, references):
+            pred_norm = pred.strip().lower()
+            if ref == "__NULL__":
+                match = int(
+                    any(ni in pred_norm for ni in _NULL_INDICATORS)
+                    or len(pred_norm) < 5
+                )
+            else:
+                gold_set = [g.strip().lower() for g in ref.split("|")]
+                match = int(
+                    pred_norm in gold_set
+                    or any(g in pred_norm or pred_norm in g for g in gold_set if g)
+                )
+            scores.append(match)
+            correct += match
+        total = len(predictions)
+        return {
+            'accuracy': (correct / total * 100) if total > 0 else 0,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
+        }
+
+
+# ---------- AIME ----------
+
+@dataclass
+class AIMEExample:
+    id: str
+    question: str
+    answer: str     # integer string, e.g. "47"
+
+
+class AIMEBenchmark(BaseBenchmark):
+    """AIME 2024 competition mathematics benchmark (Maxwell-Jia/AIME_2024)."""
+
+    def load_data(self):
+        name = self.task_config['dataset_name']
+        split = self.task_config['split']
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        ds = load_dataset(name, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            examples.append(AIMEExample(
+                id=f"{self.subset}_{i}",
+                question=r["Problem"],
+                answer=str(int(r["Answer"])),  # normalize "047" → "47"
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        return (
+            "Solve the following competition math problem. "
+            "The answer is an integer between 0 and 999 inclusive.\n\n"
+            f"{example.question}\n\n"
+            "Put your final integer answer in \\boxed{}."
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        correct = 0
+        scores = []
+        for pred, ref in zip(predictions, references):
+            extracted = extract_aime_answer(pred)
+            try:
+                match = int(int(extracted) == int(ref.strip()))
+            except (ValueError, TypeError):
+                match = 0
+            scores.append(match)
+            correct += match
+        total = len(predictions)
+        return {
+            'accuracy': (correct / total * 100) if total > 0 else 0,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
+        }
+
+
+# ---------- LiveCodeBench ----------
+
+@dataclass
+class LiveCodeBenchExample:
+    id: str
+    question: str
+    answer: str         # sentinel "__code__"
+    test_cases: list    # list of {"input": str, "output": str}
+
+
+class LiveCodeBenchBenchmark(BaseBenchmark):
+    """Code generation with pass@1 evaluation (livecodebench/code_generation_lite)."""
+
+    def __init__(self, task_config, subset):
+        super().__init__(task_config, subset)
+        self.test_cases_per_example = []
+
+    def load_data(self):
+        name = self.task_config['dataset_name']
+        split = self.task_config['split']
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        ds = load_dataset(name, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        self.test_cases_per_example = []
+        examples = []
+        for i, r in enumerate(ds):
+            tests = r.get("public_tests", [])
+            self.test_cases_per_example.append(tests)
+            examples.append(LiveCodeBenchExample(
+                id=f"{self.subset}_{i}",
+                question=r["question_content"],
+                answer="__code__",
+                test_cases=tests,
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        return (
+            "Write a Python solution for the following competitive programming problem. "
+            "Return ONLY the Python code without any explanation or markdown formatting.\n\n"
+            f"{example.question}"
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        scores = []
+        for i, pred in enumerate(predictions):
+            code = extract_code_block(pred)
+            tests = self.test_cases_per_example[i] if i < len(self.test_cases_per_example) else []
+            if not tests:
+                scores.append(0)
+                continue
+            passed = sum(
+                1 for tc in tests
+                if _run_python_code(code, tc.get("input", "")) == tc.get("output", "").strip()
+            )
+            scores.append(1 if passed == len(tests) else 0)
+
+        correct = sum(scores)
+        total = len(predictions)
+        return {
+            'pass_at_1': (correct / total * 100) if total > 0 else 0,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
+        }
+
+
+# ---------- FrontierMath ----------
+
+@dataclass
+class FrontierMathExample:
+    id: str
+    question: str
+    answer: str
+
+
+class FrontierMathBenchmark(BaseBenchmark):
+    """Expert-level mathematics benchmark (EleutherAI/frontiermath). Requires HF access approval."""
+
+    def load_data(self):
+        name = self.task_config['dataset_name']
+        split = self.task_config['split']
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        try:
+            ds = load_dataset(name, split=split)
+        except Exception as e:
+            raise RuntimeError(
+                f"Could not load FrontierMath dataset '{name}'. "
+                "This dataset requires approved access at "
+                "https://huggingface.co/datasets/EleutherAI/frontiermath\n"
+                f"Original error: {e}"
+            )
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            examples.append(FrontierMathExample(
+                id=f"{self.subset}_{i}",
+                question=r["problem"],
+                answer=r["answer"],
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        return (
+            "Solve the following advanced mathematics problem. "
+            "Express your final answer in \\boxed{}.\n\n"
+            f"{example.question}"
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        correct = 0
+        scores = []
+        extracted_predictions = [extract_boxed_answer(pred) for pred in predictions]
+        for pred, ref in zip(extracted_predictions, references):
+            if verify(ref, pred):
+                correct += 1
+                scores.append(1)
+            else:
+                scores.append(0)
+        total = len(predictions)
+        return {
+            'accuracy': (correct / total * 100) if total > 0 else 0,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
+        }
+
+
+# ---------- FLORES-200 ----------
+
+FLORES_LANG_NAMES = {
+    "deu_Latn": ("German", "Germany"),
+    "fra_Latn": ("French", "France"),
+    "spa_Latn": ("Spanish", "Spain"),
+    "zho_Hans": ("Mandarin Chinese", "China"),
+    "zho_Hant": ("Traditional Chinese", "Taiwan"),
+    "arb_Arab": ("Arabic", "Middle East"),
+    "ben_Beng": ("Bengali", "Bangladesh"),
+    "rus_Cyrl": ("Russian", "Russia"),
+    "jpn_Jpan": ("Japanese", "Japan"),
+    "swh_Latn": ("Swahili", "East Africa"),
+    "tur_Latn": ("Turkish", "Turkey"),
+    "kor_Hang": ("Korean", "South Korea"),
+    "hin_Deva": ("Hindi", "India"),
+    "vie_Latn": ("Vietnamese", "Vietnam"),
+    "por_Latn": ("Portuguese", "Portugal"),
+    "ind_Latn": ("Indonesian", "Indonesia"),
+    "ita_Latn": ("Italian", "Italy"),
+    "pol_Latn": ("Polish", "Poland"),
+    "nld_Latn": ("Dutch", "Netherlands"),
+    "tha_Thai": ("Thai", "Thailand"),
+    "ron_Latn": ("Romanian", "Romania"),
+    "ukr_Cyrl": ("Ukrainian", "Ukraine"),
+    "ces_Latn": ("Czech", "Czechia"),
+    "fin_Latn": ("Finnish", "Finland"),
+    "heb_Hebr": ("Hebrew", "Israel"),
+    "tel_Telu": ("Telugu", "India"),
+    "tam_Taml": ("Tamil", "India"),
+    "mlt_Latn": ("Maltese", "Malta"),
+    "amh_Ethi": ("Amharic", "Ethiopia"),
+    "yor_Latn": ("Yoruba", "Nigeria"),
+    "swa_Latn": ("Swahili", "East Africa"),
+}
+
+
+class FLORES200Benchmark(BaseBenchmark):
+    """FLORES-200 machine translation benchmark (Muennighoff/flores200)."""
+
+    def __init__(self, task_config, subset):
+        super().__init__(task_config, subset)
+        self.comet_model = None
+        self.include_comet = task_config['defaults'].get("include_comet", False)
+        self.sources = []
+
+    def load_data(self):
+        name = self.task_config['dataset_name']
+        split = self.task_config['split']
+        limit = self.defaults.get('limit_per_subset')
+        src_lang = self.defaults.get('src_lang', 'eng_Latn')
+
+        print(f"Loading {name} ({src_lang} → {self.subset})...")
+        src_ds = load_dataset(name, src_lang, split=split)
+        tgt_ds = load_dataset(name, self.subset, split=split)
+
+        assert len(src_ds) == len(tgt_ds), (
+            f"Source/target length mismatch: {len(src_ds)} vs {len(tgt_ds)}"
+        )
+
+        if limit:
+            src_ds = src_ds.select(range(min(limit, len(src_ds))))
+            tgt_ds = tgt_ds.select(range(min(limit, len(tgt_ds))))
+
+        examples = []
+        for i, (src_row, tgt_row) in enumerate(zip(src_ds, tgt_ds)):
+            examples.append(MTExample(
+                id=f"{self.subset}_{i}",
+                source=src_row["sentence"],
+                reference=tgt_row["sentence"],
+            ))
+
+        self.sources = [ex.source for ex in examples]
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        tgt_lang, tgt_region = FLORES_LANG_NAMES.get(self.subset, (self.subset, self.subset))
+        return WMT24PP_PROMPT.format(
+            src_lang="English",
+            tgt_lang=tgt_lang,
+            tgt_region=tgt_region,
+            tgt_code=self.subset,
+            input_text=example.source,
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        assert len(predictions) == len(references), (
+            f"Length mismatch: {len(predictions)} predictions vs {len(references)} references"
+        )
+
+        per_example_bleu = []
+        per_example_chrf = []
+        for pred, ref in zip(predictions, references):
+            if not pred or not pred.strip():
+                per_example_bleu.append(None)
+                per_example_chrf.append(None)
+            else:
+                per_example_bleu.append(sacrebleu.sentence_bleu(pred, [ref]).score)
+                per_example_chrf.append(sacrebleu.sentence_chrf(pred, [ref], word_order=2).score)
+
+        valid = [
+            (pred, ref, src)
+            for pred, ref, src in zip(predictions, references, self.sources)
+            if pred and pred.strip()
+        ]
+
+        if not valid:
+            return {
+                "bleu": 0.0, "chrfpp": 0.0, "num_predictions": len(predictions),
+                "per_example_scores": {"bleu": per_example_bleu, "chrfpp": per_example_chrf},
+            }
+
+        if len(valid) < len(predictions):
+            print(f"Warning: {len(predictions) - len(valid)} empty predictions excluded")
+
+        valid_preds, valid_refs, _ = map(list, zip(*valid))
+        bleu = sacrebleu.corpus_bleu(valid_preds, [valid_refs])
+        chrf = sacrebleu.corpus_chrf(valid_preds, [valid_refs], word_order=2)
+
+        return {
+            "bleu": bleu.score,
+            "chrfpp": chrf.score,
+            "num_predictions": len(predictions),
+            "per_example_scores": {"bleu": per_example_bleu, "chrfpp": per_example_chrf},
+        }
+
+
+# ---------- XNLI ----------
+
+_NLI_LABEL_MAP = {0: "entailment", 1: "neutral", 2: "contradiction"}
+
+
+@dataclass
+class XNLIExample:
+    id: str
+    question: str   # premise + hypothesis concatenated for source logging
+    premise: str
+    hypothesis: str
+    answer: str     # "entailment", "neutral", or "contradiction"
+
+
+class XNLIBenchmark(BaseBenchmark):
+    """Cross-lingual Natural Language Inference (xnli)."""
+
+    def load_data(self):
+        name = self.task_config['dataset_name']
+        split = self.task_config['split']
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        ds = load_dataset(name, self.subset, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            examples.append(XNLIExample(
+                id=f"{self.subset}_{i}",
+                question=f"{r['premise']} | {r['hypothesis']}",
+                premise=r["premise"],
+                hypothesis=r["hypothesis"],
+                answer=_NLI_LABEL_MAP[r["label"]],
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        return (
+            "Determine the logical relationship between the following two sentences.\n\n"
+            f"Premise: {example.premise}\n"
+            f"Hypothesis: {example.hypothesis}\n\n"
+            "Does the premise entail, contradict, or is neutral towards the hypothesis?\n"
+            "Answer with only one word: entailment, neutral, or contradiction."
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        correct = 0
+        scores = []
+        for pred, ref in zip(predictions, references):
+            extracted = extract_nli_label(pred)
+            match = int(extracted == ref.strip())
+            scores.append(match)
+            correct += match
+        total = len(predictions)
+        return {
+            'accuracy': (correct / total * 100) if total > 0 else 0,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
+        }
+
+
+# ---------- Belebele ----------
+
+_NUM_TO_LETTER = {1: "A", 2: "B", 3: "C", 4: "D", "1": "A", "2": "B", "3": "C", "4": "D"}
+
+
+@dataclass
+class BelebeleExample:
+    id: str
+    question: str   # passage + question for source logging
+    passage: str
+    q: str
+    A: str
+    B: str
+    C: str
+    D: str
+    answer: str     # "A", "B", "C", or "D"
+
+
+class BelebeleBenchmark(BaseBenchmark):
+    """Belebele: multilingual reading comprehension MCQ (facebook/belebele)."""
+
+    def load_data(self):
+        name = self.task_config['dataset_name']
+        split = self.task_config['split']
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        ds = load_dataset(name, self.subset, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            correct_letter = _NUM_TO_LETTER[r["correct_answer_num"]]
+            examples.append(BelebeleExample(
+                id=f"{self.subset}_{i}",
+                question=f"{r['flores_passage']}\n{r['question']}",
+                passage=r["flores_passage"],
+                q=r["question"],
+                A=r["mc_answer1"],
+                B=r["mc_answer2"],
+                C=r["mc_answer3"],
+                D=r["mc_answer4"],
+                answer=correct_letter,
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        return (
+            f"Read the passage and answer the question by selecting the correct option.\n\n"
+            f"Passage: {example.passage}\n\n"
+            f"Question: {example.q}\n"
+            f"A) {example.A}\nB) {example.B}\nC) {example.C}\nD) {example.D}\n\n"
+            "Answer with only the letter (A, B, C, or D)."
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        correct = 0
+        scores = []
+        for pred, ref in zip(predictions, references):
+            extracted = extract_choice(pred).upper()
+            match = int(extracted == ref.strip().upper())
+            scores.append(match)
+            correct += match
+        total = len(predictions)
+        return {
+            'accuracy': (correct / total * 100) if total > 0 else 0,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
+        }
+
 
 # ---- AbsenceBench ----
 @dataclass
@@ -1062,4 +2097,144 @@ class AbsenceBenchmark(BaseBenchmark):
             'micro_f1':       round(micro_f1 * 100, 1),
             'total':          total,
             'per_example_f1': per_example_f1,
+        }
+
+
+# ---------- OlympiadBench ----------
+
+_OLYMPIAD_CONFIG_MAP = {
+    "en": "OE_TO_maths_en_COMP",
+    "zh": "OE_TO_maths_zh_COMP",
+}
+
+
+@dataclass
+class OlympiadExample:
+    id: str
+    question: str
+    answer: str
+
+
+class OlympiadBenchBenchmark(BaseBenchmark):
+    """OlympiadBench: bilingual olympiad mathematics (GAIR/OlympiadBench)."""
+
+    def load_data(self):
+        name = self.task_config['dataset_name']
+        split = self.task_config['split']
+        limit = self.defaults.get('limit_per_subset')
+        config = _OLYMPIAD_CONFIG_MAP.get(self.subset, self.subset)
+
+        print(f"Loading {name} ({config})...")
+        ds = load_dataset(name, config, split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            final_answer = r.get("final_answer", [""])
+            answer = final_answer[0] if isinstance(final_answer, list) and final_answer else str(final_answer)
+            examples.append(OlympiadExample(
+                id=f"{self.subset}_{i}",
+                question=r["question"],
+                answer=answer,
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        instruction = poly_math_instruction.get(self.subset, poly_math_instruction['en'])
+        return f"{example.question}\n{instruction}\n\n"
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        correct = 0
+        scores = []
+        for pred, ref in zip(predictions, references):
+            pred_parsed = extract_boxed_answer(pred)
+            ref_parsed = extract_boxed_answer(f"\\boxed{{{ref}}}")
+            match = int(verify(ref_parsed, pred_parsed))
+            scores.append(match)
+            correct += match
+        total = len(predictions)
+        return {
+            'accuracy': (correct / total * 100) if total > 0 else 0,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
+        }
+
+
+# ---------- GPQA ----------
+
+@dataclass
+class GPQAExample:
+    id: str
+    question: str
+    A: str
+    B: str
+    C: str
+    D: str
+    answer: str     # "A", "B", "C", or "D"
+
+
+class GPQABenchmark(BaseBenchmark):
+    """GPQA Diamond: graduate-level science MCQ (Idavidrein/gpqa)."""
+
+    def load_data(self):
+        name = self.task_config['dataset_name']
+        split = self.task_config.get('split', 'train')
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} (gpqa_diamond)...")
+        ds = load_dataset(name, "gpqa_diamond", split=split)
+
+        if limit:
+            ds = ds.select(range(min(limit, len(ds))))
+
+        examples = []
+        for i, r in enumerate(ds):
+            correct = r["Correct Answer"]
+            wrongs = [r["Incorrect Answer 1"], r["Incorrect Answer 2"], r["Incorrect Answer 3"]]
+            # Deterministic ordering: sort all 4 choices alphabetically
+            all_opts = sorted([correct] + wrongs)
+            letter_map = {opt: chr(ord('A') + j) for j, opt in enumerate(all_opts)}
+            examples.append(GPQAExample(
+                id=f"gpqa_{i}",
+                question=r["Question"],
+                A=all_opts[0],
+                B=all_opts[1],
+                C=all_opts[2],
+                D=all_opts[3],
+                answer=letter_map[correct],
+            ))
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} examples")
+        return examples
+
+    def prepare_prompt(self, example):
+        return (
+            "The following is a graduate-level science question. "
+            "Answer with only the letter (A, B, C, or D). "
+            "Do not include explanations in your final answer.\n\n"
+            f"{example.question}\n"
+            f"A) {example.A}\nB) {example.B}\nC) {example.C}\nD) {example.D}\n\n"
+        )
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        correct = 0
+        scores = []
+        for pred, ref in zip(predictions, references):
+            extracted = extract_choice(pred).upper()
+            match = int(extracted == ref.strip().upper())
+            scores.append(match)
+            correct += match
+        total = len(predictions)
+        return {
+            'accuracy': (correct / total * 100) if total > 0 else 0,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
         }
