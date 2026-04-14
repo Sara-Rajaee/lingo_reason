@@ -9,11 +9,6 @@
 /*.sh
 
 *.pyc
-
-# playground files
-tmp.py
-comet_eval.py
-
 # logs and results
 logs/
 results/
@@ -29,4 +24,5 @@ uv.lock
 
 # cache
 __pycache__/
-.cache/
+.*/
+*.md
