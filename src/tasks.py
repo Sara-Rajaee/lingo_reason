@@ -510,42 +510,104 @@ class LinguiniBenchmark(BaseBenchmark):
             "Do not include explanations in your final answer.\n\n"
         )
 
-    def evaluate(self, predictions: List[str], references: List[str], 
+    def evaluate(self, predictions: List[str], references: List[str],
                  eval_types: Optional[List[str]]=None, points: Optional[List[float]] =None) -> dict:
-        """Evaluate using exact match (case-insensitive) + chrF score."""
+        """Evaluate using exact match, line-level accuracy, and chrF score."""
         assert len(predictions) == len(references), (
             f"Mismatch: {len(predictions)} predictions vs {len(references)} references"
         )
 
+        def normalize(text):
+            """Normalize whitespace and case for comparison."""
+            return ' '.join(text.strip().lower().split())
+
+        def extract_answer_lines(text):
+            """Extract clean answer lines, stripping numbering/bullets."""
+            lines = []
+            for line in text.strip().split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                # Strip common numbering: "1. ", "1) ", "(1) ", "- "
+                cleaned = re.sub(r'^(\d+[\.\)]\s*|\(\d+\)\s*|-\s*)', '', line).strip()
+                # Strip trailing whitespace artifacts
+                cleaned = cleaned.rstrip()
+                if cleaned:
+                    lines.append(cleaned)
+            return lines
+
+        def format_check(pred, ref):
+            """Check if prediction has consistent format.
+            Returns (is_clean, has_reasoning_leak, line_count_match)."""
+            reasoning_words = ['because', 'therefore', 'the pattern', 'let me',
+                             'step 1', 'i notice', 'looking at', 'we can see',
+                             'first,', 'analysis', 'observe that']
+            has_leak = any(w in pred.lower() for w in reasoning_words)
+            pred_lines = extract_answer_lines(pred)
+            ref_lines = extract_answer_lines(ref)
+            count_match = len(pred_lines) == len(ref_lines)
+            is_clean = not has_leak
+            return is_clean, not has_leak, count_match
+
         scores = []
         correct = 0
         chrf_scores = []
+        line_correct_list = []
+        line_total_list = []
+        format_clean = 0
+        format_line_match = 0
 
         for pred, ref in zip(predictions, references):
-            # Normalize whitespace: collapse newlines/spaces for comparison
-            pred_norm = ' '.join(pred.strip().lower().split())
-            ref_norm  = ' '.join(ref.strip().lower().split())
+            pred_norm = normalize(pred)
+            ref_norm = normalize(ref)
 
-            # Exact match
+            # Exact match (full answer)
             match = int(pred_norm == ref_norm)
             scores.append(match)
             correct += match
 
-            # chrF per example (character n-gram F-score)
+            # chrF (full answer)
             chrf_scores.append(_chrf(pred_norm, ref_norm))
 
-        total    = len(predictions)
+            # Line-level accuracy (per-answer-element)
+            pred_lines = extract_answer_lines(pred)
+            ref_lines = extract_answer_lines(ref)
+            line_correct = 0
+            line_total = len(ref_lines)
+            for i, ref_line in enumerate(ref_lines):
+                if i < len(pred_lines):
+                    if normalize(pred_lines[i]) == normalize(ref_line):
+                        line_correct += 1
+            line_correct_list.append(line_correct)
+            line_total_list.append(line_total)
+
+            # Format verification
+            is_clean, _, count_match = format_check(pred, ref)
+            format_clean += int(is_clean)
+            format_line_match += int(count_match)
+
+        total = len(predictions)
         accuracy = (correct / total * 100) if total > 0 else 0.0
         chrf_avg = (sum(chrf_scores) / total * 100) if total > 0 else 0.0
+        total_lines = sum(line_total_list)
+        total_line_correct = sum(line_correct_list)
+        line_accuracy = (total_line_correct / total_lines * 100) if total_lines > 0 else 0.0
 
         return {
             'accuracy': accuracy,
             'chrf': chrf_avg,
+            'line_accuracy': line_accuracy,
             'correct': correct,
             'total': total,
+            'line_correct': total_line_correct,
+            'line_total': total_lines,
+            'format_clean_rate': (format_clean / total * 100) if total > 0 else 0.0,
+            'format_line_match_rate': (format_line_match / total * 100) if total > 0 else 0.0,
             "per_example_scores": {
                 "accuracy": scores,
                 "chrf": chrf_scores,
+                "line_correct": line_correct_list,
+                "line_total": line_total_list,
             },
         }
 
@@ -761,14 +823,14 @@ class MuLRExample:
     meta: str             # Author and task information
 
 mulr_instruction = {
-    'en': "\n\nOnly generate your final response within square brackets [] without extra explanations.\n\n",
-    'de': "\n\nGeben Sie Ihre endgültige Antwort ausschließlich in eckigen Klammern [] an, ohne zusätzliche Erläuterungen.\n\n",
-    'zh': "\n\n请仅在方括号 [] 内填写最终答案，无需额外解释。\n\n",
-    'fr': "\n\nVeuillez générer votre réponse finale uniquement entre crochets [] sans explications supplémentaires.\n\n",
-    'ja': "\n\n角括弧 [] 内には、追加の説明を一切含めずに、最終的な回答のみを記述してください。\n\n",
-    'ko': "\n\n추가 설명 없이 최종 답변만 대괄호 [] 안에 작성해 주십시오.\n\n", 
-    'pt': "\n\nGere a sua resposta final apenas entre parêntesis rectos [] sem explicações adicionais.\n\n",
-    'es': "\n\nGenere su respuesta final únicamente dentro de los corchetes [] sin explicaciones adicionales.\n\n"
+    'en': "\n\nIMPORTANT: You MUST put your final answer inside square brackets on the last line. Example: [your answer here]\nDo NOT write anything after the brackets. Only the text inside [...] will be graded.\n\n",
+    'de': "\n\nWICHTIG: Sie MÜSSEN Ihre endgültige Antwort in eckige Klammern auf der letzten Zeile setzen. Beispiel: [Ihre Antwort hier]\nSchreiben Sie NICHTS nach den Klammern. Nur der Text innerhalb von [...] wird bewertet.\n\n",
+    'zh': "\n\n重要：你必须将最终答案放在最后一行的方括号内。示例：[你的答案]\n方括号后不要写任何内容。只有 [...] 内的文本会被评分。\n\n",
+    'fr': "\n\nIMPORTANT : Vous DEVEZ mettre votre réponse finale entre crochets sur la dernière ligne. Exemple : [votre réponse ici]\nN'écrivez RIEN après les crochets. Seul le texte entre [...] sera évalué.\n\n",
+    'ja': "\n\n重要：最終回答は必ず最後の行の角括弧内に記入してください。例：[あなたの回答]\n括弧の後には何も書かないでください。[...] 内のテキストのみが採点されます。\n\n",
+    'ko': "\n\n중요: 최종 답변을 반드시 마지막 줄에 대괄호 안에 넣어 주십시오. 예: [답변]\n대괄호 뒤에는 아무것도 쓰지 마십시오. [...] 안의 텍스트만 채점됩니다.\n\n",
+    'pt': "\n\nIMPORTANTE: Você DEVE colocar sua resposta final entre colchetes na última linha. Exemplo: [sua resposta aqui]\nNÃO escreva nada após os colchetes. Apenas o texto dentro de [...] será avaliado.\n\n",
+    'es': "\n\nIMPORTANTE: DEBE poner su respuesta final entre corchetes en la última línea. Ejemplo: [su respuesta aquí]\nNO escriba nada después de los corchetes. Solo el texto dentro de [...] será evaluado.\n\n"
 
 
 }
