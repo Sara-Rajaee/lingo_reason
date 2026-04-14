@@ -3,7 +3,8 @@
 
 # data
 *.json
-*.jsonl
+*.jsonl 
+*.pdf
 
 # bash files with API tokens (but not scripts/)
 /*.sh
