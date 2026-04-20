@@ -90,8 +90,6 @@ class BenchmarkFactory:
             return BelebeleBenchmark(task_config, subset)
         elif benchmark_type == 'mkqa':
             return MKQABenchmark(task_config, subset)
-        elif benchmark_type == 'aime':
-            return AIMEBenchmark(task_config, subset)
         elif benchmark_type == 'olympiad_bench':
             return OlympiadBenchBenchmark(task_config, subset)
         elif benchmark_type == 'gpqa':
@@ -350,7 +348,7 @@ class PolyMathBenchmark(BaseBenchmark):
             'total': total,
             'per_example_accuracy': scores,
         }
-# ---------- AIME 2020 ---------
+# ---------- AIME 2025 ---------
 @dataclass
 class AIMEExample:
     id: str
@@ -1428,69 +1426,6 @@ class MKQABenchmark(BaseBenchmark):
                     pred_norm in gold_set
                     or any(g in pred_norm or pred_norm in g for g in gold_set if g)
                 )
-            scores.append(match)
-            correct += match
-        total = len(predictions)
-        return {
-            'accuracy': (correct / total * 100) if total > 0 else 0,
-            'correct': correct,
-            'total': total,
-            'per_example_accuracy': scores,
-        }
-
-
-# ---------- AIME ----------
-
-@dataclass
-class AIMEExample:
-    id: str
-    question: str
-    answer: str     # integer string, e.g. "47"
-
-
-class AIMEBenchmark(BaseBenchmark):
-    """AIME 2024 competition mathematics benchmark (Maxwell-Jia/AIME_2024)."""
-
-    def load_data(self):
-        name = self.task_config['dataset_name']
-        split = self.task_config['split']
-        limit = self.defaults.get('limit_per_subset')
-
-        print(f"Loading {name} ({self.subset})...")
-        ds = load_dataset(name, split=split)
-
-        if limit:
-            ds = ds.select(range(min(limit, len(ds))))
-
-        examples = []
-        for i, r in enumerate(ds):
-            examples.append(AIMEExample(
-                id=f"{self.subset}_{i}",
-                question=r["Problem"],
-                answer=str(int(r["Answer"])),  # normalize "047" → "47"
-            ))
-
-        self.dataset = examples
-        print(f"Loaded {len(examples)} examples from {self.subset}")
-        return examples
-
-    def prepare_prompt(self, example):
-        return (
-            "Solve the following competition math problem. "
-            "The answer is an integer between 0 and 999 inclusive.\n\n"
-            f"{example.question}\n\n"
-            "Put your final integer answer in \\boxed{}."
-        )
-
-    def evaluate(self, predictions, references, eval_types=None, points=None):
-        correct = 0
-        scores = []
-        for pred, ref in zip(predictions, references):
-            extracted = extract_aime_answer(pred)
-            try:
-                match = int(int(extracted) == int(ref.strip()))
-            except (ValueError, TypeError):
-                match = 0
             scores.append(match)
             correct += match
         total = len(predictions)

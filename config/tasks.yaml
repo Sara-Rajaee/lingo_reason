@@ -159,18 +159,6 @@ tasks:
       top_p: 1.0
       limit_per_subset: 500
 
-  aime:
-    benchmark_type: "aime"
-    dataset_name: "Maxwell-Jia/AIME_2024"
-    split: "train"
-    subsets: ["en"]
-    defaults:
-      batch_size: 16
-      max_new_tokens: 16384
-      temperature: 0.0
-      top_p: 1.0
-      limit_per_subset: 30
-
   livecodebench:
     benchmark_type: "livecodebench"
     dataset_name: "livecodebench/code_generation_lite"
