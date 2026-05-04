@@ -3,7 +3,7 @@ together
 google-genai
 cohere
 openai
-datasets
+datasets<4.0.0
 pyyaml
 python-dotenv
 sacrebleu
