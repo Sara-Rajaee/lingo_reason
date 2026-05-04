@@ -13,6 +13,7 @@
 
 # playground files
 tmp.py
+analysis.py
 comet_eval.py
 
 # logs and results
