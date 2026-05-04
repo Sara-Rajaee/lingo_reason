@@ -1035,7 +1035,7 @@ class MGSMBenchmark(BaseBenchmark):
         name = self.task_config['dataset_name']
         split = self.task_config['split']
         limit = self.defaults.get('limit_per_subset')
-
+        revision = self.task_config.get('revision')
         print(f"Loading {name} ({self.subset})...")
         ds = load_dataset(name, self.subset, split=split)
 
@@ -1376,7 +1376,7 @@ class MKQABenchmark(BaseBenchmark):
         limit = self.defaults.get('limit_per_subset')
 
         print(f"Loading {name} ({self.subset})...")
-        ds = load_dataset(name, split=split)
+        ds = load_dataset(name, split=split, trust_remote_code=True)
 
         if limit:
             ds = ds.select(range(min(limit, len(ds))))
@@ -1460,7 +1460,7 @@ class LiveCodeBenchBenchmark(BaseBenchmark):
         limit = self.defaults.get('limit_per_subset')
 
         print(f"Loading {name} ({self.subset})...")
-        ds = load_dataset(name, split=split)
+        ds = load_dataset(name, split=split, trust_remote_code=True)
 
         if limit:
             ds = ds.select(range(min(limit, len(ds))))
@@ -1468,7 +1468,7 @@ class LiveCodeBenchBenchmark(BaseBenchmark):
         self.test_cases_per_example = []
         examples = []
         for i, r in enumerate(ds):
-            tests = r.get("public_tests", [])
+            tests = r.get("public_test_cases", [])
             self.test_cases_per_example.append(tests)
             examples.append(LiveCodeBenchExample(
                 id=f"{self.subset}_{i}",

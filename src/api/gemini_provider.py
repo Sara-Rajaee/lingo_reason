@@ -37,13 +37,18 @@ class GeminiProvider(BaseProvider):
                 )
 
                 reasoning, generation = "", ""
-                for part in response.candidates[0].content.parts:
-                    if not part.text:
-                        continue
-                    if part.thought:
-                        reasoning = part.text
-                    else:
-                        generation = part.text
+                try:
+                    for part in response.candidates[0].content.parts:
+                        if not part.text:
+                            continue
+                        if part.thought:
+                            reasoning = part.text
+                        else:
+                            generation = part.text
+
+                except Exception as e:
+                    print(f"Error in receiving the response: {e}")
+
 
                 # exit()
                 return {
