@@ -339,6 +339,7 @@ class PolyMathBenchmark(BaseBenchmark):
             normalized = normalize_latex(pred_text)
             extracted = extract_boxed_content(normalized)
             extracted = extracted[0] if extracted else None
+            ref = ref.strip().strip('$').strip()
             is_correct = math_equal(extracted, ref)
             correct += int(is_correct)
             scores.append(1 if is_correct else 0)
