@@ -70,5 +70,45 @@ def save_results(results, output_dir, model_name, task_name, subset, split, reas
 
 def get_output_dir():
     """Create timestamped output directory"""
-    # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return 'results'
+
+def save_distillation_results(results, output_dir, model_name, task_name, subset, split):
+    """Save sampled distillation outputs and the samples that matched the gold answer."""
+    if task_name == 'polymath':
+        task_name = task_name + '_' + split
+
+    result_path = os.path.join(output_dir, model_name, task_name, subset)
+    os.makedirs(result_path, exist_ok=True)
+
+    metadata = {
+        'model': model_name,
+        'task': task_name,
+        'subset': subset,
+        'split': split,
+        'reasoning_enabled': results.get('reasoning', False),
+        'reasoning_effort': results.get('reasoning_effort'),
+        'distillation': results.get('distillation', False),
+        'distillation_samples': results.get('distillation_samples', 1),
+        'generation_params': results.get('generation_params', {}),
+        'num_sampled_outputs': len(results.get('raw_outputs', [])),
+        'num_gold_outputs': len(results.get('gold_outputs', []))
+    }
+
+    with open(os.path.join(result_path, 'metadata.json'), 'w', encoding="utf-8") as f:
+        json.dump(metadata, f, ensure_ascii=False, indent=2)
+
+    with open(os.path.join(result_path, 'metrics.json'), 'w', encoding="utf-8") as f:
+        json.dump(results['metrics'], f, ensure_ascii=False, indent=2)
+
+    with open(os.path.join(result_path, 'sampled_outputs.json'), 'w', encoding="utf-8") as f:
+        json.dump(results['raw_outputs'], f, ensure_ascii=False, indent=2)
+
+    with open(os.path.join(result_path, 'gold_outputs.json'), 'w', encoding="utf-8") as f:
+        json.dump(results.get('gold_outputs', []), f, ensure_ascii=False, indent=2)
+
+    print(f"Distillation results saved to {result_path}")
+
+
+def get_distillation_output_dir():
+    """Return output directory for distillation artifacts."""
+    return 'distilled_results'

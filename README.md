@@ -87,6 +87,16 @@ To see all available models and tasks:
 python run.py --list
 ```
 
+To collect high-temperature samples for distillation:
+
+```bash
+python run.py --model gpt-oss-120b --task mgsm --distillation --distillation-samples 32
+```
+
+Distillation runs write to `distilled_results/<model_name>/<task>/<subset>/` with `sampled_outputs.json` for every sampled output and `gold_outputs.json` for one gold-matching output per example. The gold file keeps the original task columns plus the selected reasoning trace.
+
+For distillation sampling params, add `distillation_temperature` and `distillation_top_p` under the task's `defaults` in `config/tasks.yaml`. If they are not set, distillation falls back to the task's normal `temperature` and `top_p`.
+
 ## Configuration
 
 Task configurations (e.g. languages, number of evaluation samples) can be modified in the config files located in the `config/` directory.
