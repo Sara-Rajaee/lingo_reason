@@ -198,8 +198,12 @@ class Evaluator:
         # Sort raw_outputs by ID to maintain consistent order
         def extract_numeric_id(output):
             id_parts = output['id'].rsplit('_', 1)
-            example_id = int(id_parts[-1]) if len(id_parts) > 1 else 0
-            return (example_id, output.get('sample_index', 0))
+            try:
+                example_id = int(id_parts[-1]) if len(id_parts) > 1 else 0
+                sort_key = (0, example_id)
+            except ValueError:
+                sort_key = (1, output['id'])
+            return (*sort_key, output.get('sample_index', 0))
 
         raw_outputs.sort(key=extract_numeric_id)
         
