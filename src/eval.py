@@ -1,15 +1,27 @@
 import asyncio
 from tqdm.asyncio import tqdm
 import json
+from dataclasses import asdict, is_dataclass
 
 class Evaluator:
-    def __init__(self, provider, model_config, benchmark, task_config, concurrency=5):
+    def __init__(
+        self,
+        provider,
+        model_config,
+        benchmark,
+        task_config,
+        concurrency=5,
+        distillation=False,
+        distillation_samples=1,
+    ):
         self.provider = provider
         self.model_config = model_config
         self.benchmark = benchmark
         self.concurrency = concurrency
         self.task_config = task_config
-        
+        self.distillation = distillation
+        self.distillation_samples = max(1, distillation_samples)
+
         # Determine reasoning configuration
         model_has_reasoning = model_config['default_params'].get('reasoning', False)
         model_reasoning_effort = model_config['default_params'].get('reasoning_effort', None)
@@ -23,7 +35,7 @@ class Evaluator:
             self.reasoning = False
 
     
-    async def evaluate_single(self, example, semaphore, generation_params):
+    async def evaluate_single(self, example, semaphore, generation_params, sample_index=None):
         """Evaluate a single example with concurrency control"""
         async with semaphore:
             # Prepare prompt
@@ -76,8 +88,10 @@ class Evaluator:
                 source_text = None
                 eval_type = None
                 points = 1
-            return {
+            raw_output = {
+
                 'id': example.id,
+                '_task_fields': self._get_task_fields(example),
                 'source': source_text,
                 'prompt': prompt,
                 'reasoning': output['reasoning'],
@@ -88,7 +102,40 @@ class Evaluator:
                 'eval_type': eval_type,
                 'points': points
             }
+            if sample_index is not None:
+                raw_output['sample_index'] = sample_index
+                raw_output['sample_id'] = f"{example.id}_sample_{sample_index}"
+            return raw_output
+
+    def _get_task_fields(self, example):
+        """Return the original task/example columns for distilled outputs."""
+        if is_dataclass(example):
+            return asdict(example)
+        return {
+            key: value
+            for key, value in vars(example).items()
+            if not key.startswith('_')
+        }
+
+    def _has_gold_answer(self, output):
+        """Infer whether a sampled output matched the gold answer from per-example scores."""
+        scores = output.get('scores', {})
+        if scores.get('accuracy') == 1:
+            return True
+        if scores.get('f1') == 1:
+            return True
+        if scores.get('points') is not None:
+            return scores['points'] >= output.get('points', 1)
+        if output.get('target_text') is not None:
+            return output.get('generation') == output.get('target_text')
+        return False
     
+    def _build_distilled_output(self, output):
+        """Keep only the original task/example columns plus the sampled reasoning trace."""
+        distilled_output = output.get('_task_fields', {}).copy()
+        distilled_output['reasoning'] = output.get('reasoning')
+        return distilled_output
+
     async def run(self):
         """Run evaluation on the benchmark asynchronously"""
         # Load benchmark data
@@ -98,6 +145,20 @@ class Evaluator:
         generation_params = self.benchmark.get_generation_params(
             self.model_config.get('default_params', {})
         )
+        if self.distillation:
+            task_defaults = self.task_config.get('defaults', {})
+            distillation_temperature = task_defaults.get(
+                'distillation_temperature',
+                task_defaults.get('temperature')
+            )
+            if distillation_temperature is not None:
+                generation_params['temperature'] = distillation_temperature
+            distillation_top_p = task_defaults.get(
+                'distillation_top_p',
+                task_defaults.get('top_p')
+            )
+            if distillation_top_p is not None:
+                generation_params['top_p'] = distillation_top_p
         
         # Display reasoning status
         if self.reasoning:
@@ -112,14 +173,21 @@ class Evaluator:
         print(f"Reasoning: {reasoning_status}")
         print(f"Generation params: {generation_params}")
         print(f"Concurrency: {self.concurrency} requests at a time\n")
+        if self.distillation:
+            print(f"Distillation: ON ({self.distillation_samples} samples per example)\n")
         
         # Create semaphore for concurrency control
         semaphore = asyncio.Semaphore(self.concurrency)
         # Create tasks for all examples
-        tasks = [
-            self.evaluate_single(example, semaphore, generation_params)
-            for example in dataset
-        ]
+        tasks = []
+        for example in dataset:
+            if self.distillation:
+                tasks.extend(
+                    self.evaluate_single(example, semaphore, generation_params, sample_index)
+                    for sample_index in range(self.distillation_samples)
+                )
+            else:
+                tasks.append(self.evaluate_single(example, semaphore, generation_params))
      
         # Run all tasks with progress bar
         raw_outputs = []
@@ -130,7 +198,12 @@ class Evaluator:
         # Sort raw_outputs by ID to maintain consistent order
         def extract_numeric_id(output):
             id_parts = output['id'].rsplit('_', 1)
-            return int(id_parts[-1]) if len(id_parts) > 1 else 0
+            try:
+                example_id = int(id_parts[-1]) if len(id_parts) > 1 else 0
+                sort_key = (0, example_id)
+            except ValueError:
+                sort_key = (1, output['id'])
+            return (*sort_key, output.get('sample_index', 0))
 
         raw_outputs.sort(key=extract_numeric_id)
         
@@ -184,10 +257,26 @@ class Evaluator:
                 output['scores'] = {
                     'f1': per_example_f1[i],
                 }
+        if self.distillation:
+            gold_outputs = []
+            seen_example_ids = set()
+
+            for output in raw_outputs:
+                output['has_gold_answer'] = self._has_gold_answer(output)
+                if output['has_gold_answer'] and output['id'] not in seen_example_ids:
+                    gold_outputs.append(self._build_distilled_output(output))
+                    seen_example_ids.add(output['id'])
+        else:
+            gold_outputs = []
+        for output in raw_outputs:
+            output.pop('_task_fields', None)
         return {
             'metrics': metrics,
             'raw_outputs': raw_outputs,
+            'gold_outputs': gold_outputs,
             'generation_params': generation_params,
             'reasoning': self.reasoning,
-
+            'reasoning_effort': self.reasoning_effort,
+            'distillation': self.distillation,
+            'distillation_samples': self.distillation_samples,
         }

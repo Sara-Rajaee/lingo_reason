@@ -70,6 +70,8 @@ tasks:
       max_new_tokens: 2048
       temperature: 0.0
       top_p: 1.0
+      distillation_temperature: 0.6
+      distillation_top_p: 0.95
       limit_per_subset: 250
 
   xcopa:
@@ -294,3 +296,16 @@ tasks:
       temperature: 0.0
       top_p: 1.0
       limit_per_subset: 2000
+
+  lingoly:
+    benchmark_type: "lingoly"
+    dataset_name: "ambean/lingOly"
+    split: "test"
+    subsets: ["default"]
+    defaults:
+      batch_size: 64
+      max_new_tokens: 2048
+      temperature: 0.0
+      top_p: 1.0
+      distillation_temperature: 0.6
+      distillation_top_p: 0.95

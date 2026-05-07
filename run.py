@@ -10,9 +10,24 @@ load_dotenv()
 from src.api import ProviderFactory
 from src.tasks import BenchmarkFactory
 from src.eval import Evaluator
-from src.utils import load_config, save_results, get_output_dir
-
-async def evaluate_task_subset(model, provider_config, task_name, task_config, subset, concurrency=5):
+from src.utils import (
+    load_config,
+    save_results,
+    save_distillation_results,
+    get_output_dir,
+    get_distillation_output_dir,
+)
+async def evaluate_task_subset(
+    model,
+    provider_config,
+    task_name,
+    task_config,
+    subset,
+    concurrency=5,
+    distillation=False,
+    distillation_samples=1,
+    distillation_temperature=None,
+):
     """Evaluate a single model on a task subset"""
     # Initialize provider
     provider = ProviderFactory.get_provider(model['provider'], provider_config)
@@ -24,12 +39,24 @@ async def evaluate_task_subset(model, provider_config, task_name, task_config, s
         subset
     )
     # Run evaluation
-    evaluator = Evaluator(provider, model, benchmark, task_config, concurrency=concurrency)
+    evaluator = Evaluator(
+        provider,
+        model,
+        benchmark,
+        task_config,
+        concurrency=concurrency,
+        distillation=distillation,
+        distillation_samples=distillation_samples,
+    )    
     results = await evaluator.run()
     
     # Save results
-    output_dir = get_output_dir()
-    save_results(results, output_dir, model['name'], task_name, subset, task_config.get('split'))
+    if distillation:
+        output_dir = get_distillation_output_dir()
+        save_distillation_results(results, output_dir, model['name'], task_name, subset, task_config.get('split'))
+    else:
+        output_dir = get_output_dir()
+        save_results(results, output_dir, model['name'], task_name, subset, task_config.get('split'))
     
     # Print summary
     print(f"\n{'='*60}")
@@ -45,7 +72,15 @@ async def evaluate_task_subset(model, provider_config, task_name, task_config, s
     
     return results
 
-async def evaluate_task(model, provider_config, task_name, task_config, concurrency=5):
+async def evaluate_task(
+    model,
+    provider_config,
+    task_name,
+    task_config,
+    concurrency=5,
+    distillation=False,
+    distillation_samples=1,
+):
     """Evaluate a model on all subsets of a task"""
     subsets = task_config.get('subsets', [])
 
@@ -73,7 +108,9 @@ async def evaluate_task(model, provider_config, task_name, task_config, concurre
             task_name, 
             task_config, 
             subset,
-            concurrency
+            concurrency,
+            distillation=distillation,
+            distillation_samples=distillation_samples,
         )
         all_results.append({
             'subset': subset,
@@ -123,6 +160,18 @@ Examples:
         type=int,
         help='Override concurrency/batch_size (default: use task config)'
     )
+    parser.add_argument(
+        '--distillation',
+        action='store_true',
+        help='Sample multiple high-temperature outputs and save distillation artifacts'
+    )
+    parser.add_argument(
+        '--distillation-samples',
+        type=int,
+        default=16,
+        help='Number of sampled outputs per example when --distillation is set (default: 16)'
+    )
+
     
     return parser.parse_args()
 
@@ -203,9 +252,10 @@ async def main():
                 provider_config, 
                 task_name, 
                 task_config,
-                concurrency
+                concurrency,
+                distillation=args.distillation,
+                distillation_samples=args.distillation_samples,
             )
-            
             # Print aggregate summary
             print(f"\n{'='*60}")
             print(f"AGGREGATE RESULTS: {model['name']} on {task_name}")

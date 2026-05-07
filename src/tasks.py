@@ -21,7 +21,8 @@ import subprocess
 import tempfile
 import os
 from instruction import query_dic
-
+import json
+import unicodedata # for lingoly output
 # ---------- Base Classes ----------
 
 class BaseBenchmark(ABC):
@@ -104,6 +105,8 @@ class BenchmarkFactory:
             return AIME2025Benchmark(task_config, subset)
         elif benchmark_type == 'absencebench':
             return AbsenceBenchmark(task_config, subset)
+        elif benchmark_type == 'lingoly':
+            return LingOlyBenchmark(task_config, subset)
         else:
             raise ValueError(f"Unknown benchmark: {benchmark_type}")
 
@@ -2228,6 +2231,180 @@ class GPQABenchmark(BaseBenchmark):
             match = int(extracted == ref.strip().upper())
             scores.append(match)
             correct += match
+        total = len(predictions)
+        return {
+            'accuracy': (correct / total * 100) if total > 0 else 0,
+            'correct': correct,
+            'total': total,
+            'per_example_accuracy': scores,
+        }
+     
+
+# ---------- LingOly ----------
+
+@dataclass
+class LingOlyExample:
+    id: str
+    preamble: str
+    context: str
+    all_questions: str
+    question: str
+    answer: str
+    overall_question_n: str
+
+
+def _parse_jsonish(value):
+    """Parse HF json-ish columns that may arrive as strings or native objects."""
+    if not isinstance(value, str):
+        return value
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        try:
+            import ast
+            return ast.literal_eval(value)
+        except (ValueError, SyntaxError):
+            return value
+
+
+def _stringify_lingoly_answer(answer):
+    answer = _parse_jsonish(answer)
+    if isinstance(answer, list):
+        return json.dumps([str(item).strip() for item in answer], ensure_ascii=False)
+    return str(answer).strip()
+
+
+def _lingoly_answer_options(answer):
+    answer = _parse_jsonish(answer)
+    if isinstance(answer, list):
+        return [str(option).strip() for option in answer]
+    return [str(answer).strip()]
+
+
+class LingOlyBenchmark(BaseBenchmark):
+    """LingOly benchmark (ambean/lingOly)."""
+
+    def load_data(self):
+        name = self.task_config['dataset_name']
+        split = self.task_config.get('split', 'test')
+        limit = self.defaults.get('limit_per_subset')
+
+        print(f"Loading {name} ({self.subset})...")
+        ds = load_dataset(name, split=split)
+
+        examples = []
+        for i, row in enumerate(ds):
+            preamble = str(row.get('preamble', '') or '')
+            context = str(row.get('context', '') or '')
+            overall_question_n = str(row.get('overall_question_n', i))
+            questions = _parse_jsonish(row.get('questions', {}))
+            all_questions = self._format_all_questions(questions)
+
+            for question_key, group_prompt, question_text, answer in self._iter_questions(questions):
+                if answer is None:
+                    continue
+                examples.append(LingOlyExample(
+                    id=f"{self.subset}_{overall_question_n}_{question_key}",
+                    preamble=preamble,
+                    context=context,
+                    all_questions=all_questions,
+                    question=f"{group_prompt}\n{question_text}".strip(),
+                    answer=_stringify_lingoly_answer(answer),
+                    overall_question_n=overall_question_n,
+                ))
+
+        if limit:
+            examples = examples[:limit]
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} question instances from {self.subset}")
+        return examples
+
+    def _format_all_questions(self, questions):
+        if isinstance(questions, dict):
+            questions = [questions]
+        if isinstance(questions, list):
+            lines = []
+            for group in questions:
+                if not isinstance(group, dict):
+                    lines.append(str(group))
+                    continue
+                question_n = group.get('question_n', '')
+                prompt = group.get('prompt', '')
+                if question_n or prompt:
+                    lines.append(f"{question_n} {prompt}".strip())
+                for subprompt in group.get('subprompts', []):
+                    if not isinstance(subprompt, dict):
+                        continue
+                    key = subprompt.get('questionpart_n', '')
+                    question = subprompt.get('question', '')
+                    lines.append(f"{key}. {question}".strip())
+            return "\n".join(lines)
+        return str(questions)
+
+    def _iter_questions(self, questions):
+        if isinstance(questions, dict):
+            questions = [questions]
+        if not isinstance(questions, list):
+            return
+
+        for group_idx, group in enumerate(questions):
+            if not isinstance(group, dict):
+                continue
+            group_prompt = str(group.get('prompt', '') or '')
+            question_n = str(group.get('question_n', group_idx))
+            for subprompt in group.get('subprompts', []):
+                if not isinstance(subprompt, dict):
+                    continue
+                question_part = str(subprompt.get('questionpart_n', ''))
+                question_key = f"{question_n}{question_part}"
+                yield (
+                    question_key,
+                    group_prompt,
+                    str(subprompt.get('question', '') or ''),
+                    subprompt.get('answer'),
+                )
+
+    def prepare_prompt(self, example):
+        return (
+            "Below is a problem sheet from a lingusitics exam. You will first see the entire sheet, then be asked\n"
+            "to respond to specific questions from the sheet. Your answers to the questions should rely only on\n"
+            "reasoning about the information provided in the sheet.\n"
+            f"{example.preamble}\n"
+            f"{example.context}\n"
+            f"{example.all_questions}\n"
+            "Now respond to the following questions:\n"
+            f"{example.question}\n"
+            "Answer with only the requested translation or phrase. "
+            "Do not include explanations in your final answer."
+        )
+
+    def get_distilled_fields(self, example):
+        return {
+            'id': example.id,
+            'context': f"{example.preamble}\n{example.context}".strip(),
+            'question': example.question,
+            'answer': example.answer,
+            'task_type': 'lingoly',
+            'task_lang': 'unknown',
+            'problem_id': example.overall_question_n,
+            'eval_type': 'exact_match',
+        }
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        def normalize(text):
+            text = unicodedata.normalize('NFKC', str(text))
+            text = ' '.join(str(text).strip().lower().split())
+            return text.strip(' \t\n\r"\'`.,;:!?')
+
+        correct = 0
+        scores = []
+        for prediction, reference in zip(predictions, references):
+            options = _lingoly_answer_options(reference)
+            match = int(any(normalize(prediction) == normalize(option) for option in options))
+            correct += match
+            scores.append(match)
+
         total = len(predictions)
         return {
             'accuracy': (correct / total * 100) if total > 0 else 0,
