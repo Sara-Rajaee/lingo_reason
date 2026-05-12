@@ -259,13 +259,16 @@ class Evaluator:
                 }
         if self.distillation:
             gold_outputs = []
+            correct_sampled_output = []
             seen_example_ids = set()
 
             for output in raw_outputs:
                 output['has_gold_answer'] = self._has_gold_answer(output)
-                if output['has_gold_answer'] and output['id'] not in seen_example_ids:
-                    gold_outputs.append(self._build_distilled_output(output))
-                    seen_example_ids.add(output['id'])
+                if output['has_gold_answer']:
+                    correct_sampled_output.append(self._build_distilled_output(output))
+                    if output['id'] not in seen_example_ids:
+                        gold_outputs.append(self._build_distilled_output(output))
+                        seen_example_ids.add(output['id'])
         else:
             gold_outputs = []
         for output in raw_outputs:
@@ -274,6 +277,7 @@ class Evaluator:
             'metrics': metrics,
             'raw_outputs': raw_outputs,
             'gold_outputs': gold_outputs,
+            'all_gold_outputs': correct_sampled_output,
             'generation_params': generation_params,
             'reasoning': self.reasoning,
             'reasoning_effort': self.reasoning_effort,

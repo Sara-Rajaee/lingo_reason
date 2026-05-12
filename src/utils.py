@@ -106,6 +106,9 @@ def save_distillation_results(results, output_dir, model_name, task_name, subset
     with open(os.path.join(result_path, 'gold_outputs.json'), 'w', encoding="utf-8") as f:
         json.dump(results.get('gold_outputs', []), f, ensure_ascii=False, indent=2)
 
+    with open(os.path.join(result_path, 'all_gold_outputs.json'), 'w', encoding="utf-8") as f:
+        json.dump(results['all_gold_outputs'], f, ensure_ascii=False, indent=2)
+
     print(f"Distillation results saved to {result_path}")
 
 
