@@ -134,6 +134,7 @@ class Evaluator:
         """Keep only the original task/example columns plus the sampled reasoning trace."""
         distilled_output = output.get('_task_fields', {}).copy()
         distilled_output['reasoning'] = output.get('reasoning')
+        distilled_output['prompt'] = output.get('prompt')
         return distilled_output
 
     async def run(self):
