@@ -97,6 +97,35 @@ Distillation runs write to `distilled_results/<model_name>/<task>/<subset>/` wit
 
 For distillation sampling params, add `distillation_temperature` and `distillation_top_p` under the task's `defaults` in `config/tasks.yaml`. If they are not set, distillation falls back to the task's normal `temperature` and `top_p`.
 
+## Data Generation
+
+Use `create_reasoning_dataloader` to mix distilled reasoning data with math examples from OpenThoughts2-1M:
+
+```python
+from src.data_generation import create_reasoning_dataloader
+
+dataloader = create_reasoning_dataloader(
+    distilled_path=[
+        "distilled_results/gpt-oss-120b/lingoly/default/all_gold_outputs.json",
+        "distilled_results/gpt-oss-120b/iolbench/default/all_gold_outputs.json",
+    ],
+    distilled_percentage=30,
+    max_samples=1000,
+    batch_size=8,
+    seed=42,
+)
+
+for batch in dataloader:
+    print(batch["dataset"])
+    print(batch["question"][0])
+    print(batch["reasoning"][0])
+    print(batch["final_answer"][0])
+    break
+```
+
+`distilled_percentage=30` means 30% distilled examples and 70% OpenThoughts math examples. The first mixed run builds `data/openthoughts_math_subset.json`. `max_samples=-1` includes all rows from the distilled linguistic reasoning JSON file and loads enough OpenThoughts2 math rows to satisfy the requested mix. later runs reuse it.
+
+
 ## Configuration
 
 Task configurations (e.g. languages, number of evaluation samples) can be modified in the config files located in the `config/` directory.
