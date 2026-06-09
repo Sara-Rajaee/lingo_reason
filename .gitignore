@@ -19,6 +19,10 @@ comet_eval.py
 # logs and results
 logs/
 results/
+train_runs/
+
+# claude code
+.claude/
 
 # virtual environment
 .venv/

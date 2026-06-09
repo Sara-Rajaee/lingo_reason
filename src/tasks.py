@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../
 from run_eval import extract_boxed_content
 from scripts import math_equal
 
-from datasets import load_dataset, get_dataset_config_names
+from datasets import load_dataset, load_from_disk, get_dataset_config_names
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 from typing import List, Optional
@@ -2290,7 +2290,13 @@ class LingOlyBenchmark(BaseBenchmark):
         limit = self.defaults.get('limit_per_subset')
 
         print(f"Loading {name} ({self.subset})...")
-        ds = load_dataset(name, split=split)
+        try:
+            ds = load_dataset(name, split=split)
+        except (ConnectionError, FileNotFoundError):
+            cache_dir = os.path.expanduser(
+                f"~/.cache/huggingface/datasets/{name.replace('/', '___')}/default/0.0.0/lingoly_cache"
+            )
+            ds = load_from_disk(cache_dir)
 
         examples = []
         for i, row in enumerate(ds):
