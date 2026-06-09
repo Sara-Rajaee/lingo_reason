@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11"
 dependencies = [
+    "accelerate>=1.13.0",
     "antlr4-python3-runtime==4.11.1",
     "cohere>=5.20.7",
     "datasets>=2.0,<3.0",
@@ -17,10 +18,14 @@ dependencies = [
     "math-verify>=0.9.0",
     "openai>=2.30.0",
     "pebble>=5.2.0",
+    "peft>=0.19.1",
     "python-dotenv>=1.2.2",
     "pyyaml>=6.0.3",
     "sacrebleu>=2.6.0",
     "together>=2.5.0",
+    "torch>=2.12.0",
     "tqdm>=4.67.3",
+    "transformers>=5.5.4",
+    "trl>=0.15.2",
     "word2number>=1.1",
 ]
