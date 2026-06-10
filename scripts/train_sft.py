@@ -161,7 +161,13 @@ def reasoning_format_reward(completions, **kwargs):
     for completion in completions:
         text = completion_text(completion)
         match = re.search(r"<think>\s*(.*?)\s*</think>", text, flags=re.DOTALL | re.IGNORECASE)
-        rewards.append(0.1 if match and match.group(1).strip() else 0.0)
+        if match and match.group(1).strip():
+            rewards.append(0.1)
+            continue
+        if "</think>" in text.lower() and text[:text.lower().find("</think>")].strip():
+            rewards.append(0.1)
+        else:
+            rewards.append(0.0)
     return rewards
 
 
