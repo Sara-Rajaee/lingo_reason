@@ -127,6 +127,14 @@ def completion_text(completion):
             return str(message.get("content") or "")
     return str(completion or "")
 
+def extract_final_answer(text):
+    text = str(text or "").strip()
+    lower_text = text.lower()
+    if "</think>" in lower_text:
+        think_end = lower_text.rfind("</think>")
+        return text[think_end + len("</think>"):].strip()
+    return text.splitlines()[-1].strip() if text else ""
+
 
 def evaluate(predictions, references, eval_types=None, points=None):
     def normalize(text):
@@ -136,7 +144,7 @@ def evaluate(predictions, references, eval_types=None, points=None):
 
     scores = []
     for prediction, reference in zip(predictions, references):
-        match = int(normalize(prediction) == normalize(reference))
+        match = int(normalize(extract_final_answer(prediction)) == normalize(reference))
         scores.append(match)
 
     return scores
@@ -147,6 +155,14 @@ def answer_reward(completions, ground_truth, **kwargs):
     results = evaluate(predictions, ground_truth)
     return results
 
+
+def reasoning_format_reward(completions, **kwargs):
+    rewards = []
+    for completion in completions:
+        text = completion_text(completion)
+        match = re.search(r"<think>\s*(.*?)\s*</think>", text, flags=re.DOTALL | re.IGNORECASE)
+        rewards.append(0.1 if match and match.group(1).strip() else 0.0)
+    return rewards
 
 
 def main():
@@ -261,7 +277,7 @@ def main():
         trainer = GRPOTrainer(
             model=model,
             args=train_config,
-            reward_funcs=answer_reward,
+            reward_funcs=[answer_reward, reasoning_format_reward],
             train_dataset=train_ds,
             eval_dataset=eval_ds,
             processing_class=tokenizer,
