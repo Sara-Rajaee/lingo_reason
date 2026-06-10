@@ -4,6 +4,8 @@ from .base_provider import BaseProvider
 
 # Matches <think>...</think> blocks (DeepSeek-R1 style, also used as fallback)
 THINK_TAG_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL)
+# Qwen3-Thinking emits only the closing </think> (opening tag is in chat template)
+THINK_CLOSE_ONLY_RE = re.compile(r"^(.*?)</think>\s*(.*)$", re.DOTALL)
 
 
 class GptOssProvider(BaseProvider):
@@ -54,6 +56,16 @@ class GptOssProvider(BaseProvider):
                 "generation": generation,
                 "raw_generation": raw_content,
             }
+
+        # Strategy 2b: only closing </think> (Qwen3-Thinking)
+        if "</think>" in raw_content:
+            close_match = THINK_CLOSE_ONLY_RE.match(raw_content)
+            if close_match:
+                return {
+                    "reasoning": close_match.group(1).strip(),
+                    "generation": close_match.group(2).strip(),
+                    "raw_generation": raw_content,
+                }
 
         # Strategy 3: no reasoning detected
         return {

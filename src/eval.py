@@ -272,6 +272,7 @@ class Evaluator:
                         seen_example_ids.add(output['id'])
         else:
             gold_outputs = []
+            correct_sampled_output = []
         for output in raw_outputs:
             output.pop('_task_fields', None)
         return {

@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=256G
-#SBATCH --time=8:00:00
+#SBATCH --time=3-00:00:00
 #SBATCH --account=omnilingual
 #SBATCH --qos=h100_omnilingual_high
 #SBATCH --output=logs/vllm_%j.out

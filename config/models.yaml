@@ -71,3 +71,21 @@ models:
       max_tokens: 32768
       top_p: 1
       reasoning: True
+
+  - name: "qwen3-4b-thinking-base"
+    provider: "gpt_oss"
+    model_id: "Qwen/Qwen3-4B-Thinking-2507"
+    default_params:
+      temperature: 0
+      max_tokens: 32768
+      top_p: 1
+      reasoning: True
+
+  - name: "qwen3-4b-instruct-base"
+    provider: "gpt_oss"
+    model_id: "Qwen/Qwen3-4B-Instruct-2507"
+    default_params:
+      temperature: 0
+      max_tokens: 32768
+      top_p: 1
+      reasoning: False
