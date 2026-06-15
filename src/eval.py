@@ -258,9 +258,10 @@ class Evaluator:
                 output['scores'] = {
                     'f1': per_example_f1[i],
                 }
+
+        gold_outputs = []
+        correct_sampled_output = []
         if self.distillation:
-            gold_outputs = []
-            correct_sampled_output = []
             seen_example_ids = set()
 
             for output in raw_outputs:
@@ -270,8 +271,6 @@ class Evaluator:
                     if output['id'] not in seen_example_ids:
                         gold_outputs.append(self._build_distilled_output(output))
                         seen_example_ids.add(output['id'])
-        else:
-            gold_outputs = []
         for output in raw_outputs:
             output.pop('_task_fields', None)
         return {
