@@ -231,7 +231,7 @@ def main():
             bf16=True,
             gradient_checkpointing=True,
             gradient_checkpointing_kwargs={"use_reentrant": False},
-            max_seq_length=args.max_seq_length,
+            max_length=args.max_seq_length,
             packing=False,
             dataset_text_field="text",
             logging_steps=args.logging_steps,
@@ -248,7 +248,7 @@ def main():
             args=sft_config,
             train_dataset=train_ds,
             eval_dataset=eval_ds,
-            tokenizer=tokenizer,
+            processing_class=tokenizer,
             peft_config=peft_config,
         )
     else:
