@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 ##SBATCH --cpus-per-task=16
 #SBATCH --mem-per-gpu=80G
-#SBATCH --time=4:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=logs/vllm_%j.out
 #SBATCH --error=logs/vllm_%j.err
 

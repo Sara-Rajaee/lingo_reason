@@ -309,3 +309,18 @@ tasks:
       top_p: 1.0
       distillation_temperature: 0.6
       distillation_top_p: 0.95
+
+  puzzeling:
+    benchmark_type: "puzzeling"
+    dataset_name: "puzzeling"
+    prompt_file: "data/lingoly_puzzling_modeling_prompts.jsonl"
+    answer_file: "data/lingoly_puzzling_modeling_answers.jsonl"
+    subsets: ["default"]
+    defaults:
+      batch_size: 64
+      max_new_tokens: 2048
+      temperature: 0.0
+      top_p: 1.0
+      distillation_temperature: 0.6
+      distillation_top_p: 0.95
+      limit_per_subset: 2000

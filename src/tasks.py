@@ -107,6 +107,8 @@ class BenchmarkFactory:
             return AbsenceBenchmark(task_config, subset)
         elif benchmark_type == 'lingoly':
             return LingOlyBenchmark(task_config, subset)
+        elif benchmark_type == 'puzzeling':
+            return PuzzelingBenchmark(task_config, subset)
         else:
             raise ValueError(f"Unknown benchmark: {benchmark_type}")
 
@@ -2411,4 +2413,116 @@ class LingOlyBenchmark(BaseBenchmark):
             'correct': correct,
             'total': total,
             'per_example_accuracy': scores,
+        }
+
+# ---------- Puzzeling ----------
+@dataclass
+class PuzzelingExample:
+    id: str
+    prompt: str
+    answer: str
+
+
+class PuzzelingBenchmark(BaseBenchmark):
+    """Local linguistic puzzle benchmark backed by separate prompt and answer JSONL files."""
+
+    def load_data(self):
+        prompt_file = self.task_config.get("prompt_file", "data/puzzeling_prompts.jsonl")
+        answer_file = self.task_config.get("answer_file", "data/puzzeling_answers.jsonl")
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        prompt_path = prompt_file if os.path.isabs(prompt_file) else os.path.join(repo_root, prompt_file)
+        answer_path = answer_file if os.path.isabs(answer_file) else os.path.join(repo_root, answer_file)
+        limit = self.defaults.get("limit_per_subset")
+
+        print(f"Loading puzzeling prompts from {prompt_path}")
+        print(f"Loading puzzeling answers from {answer_path}")
+
+        with open(prompt_path, encoding="utf-8") as f:
+            prompts = [json.loads(line) for line in f if line.strip()]
+        with open(answer_path, encoding="utf-8") as f:
+            answers = [json.loads(line) for line in f if line.strip()]
+        if len(prompts) != len(answers):
+            raise ValueError(
+                f"Puzzeling prompt/answer count mismatch: {len(prompts)} prompts vs {len(answers)} answers"
+            )
+
+        examples = []
+        for i, (prompt_row, answer_row) in enumerate(zip(prompts, answers)):
+            prompt = prompt_row.get("prompt")
+            answer = answer_row.get("answer")
+            if prompt is None:
+                raise ValueError(f"Missing 'prompt' in {prompt_path}:{i + 1}")
+            if answer is None:
+                raise ValueError(f"Missing 'answer' in {answer_path}:{i + 1}")
+
+            example_id = str(prompt_row.get("id", answer_row.get("id", f"{self.subset}_{i}")))
+            examples.append(PuzzelingExample(
+                id=example_id,
+                prompt=str(prompt).strip(),
+                answer=json.dumps(_parse_jsonish(answer), ensure_ascii=False),
+            ))
+
+        if limit:
+            examples = examples[:limit]
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} puzzeling examples from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example):
+        return example.prompt
+
+    def evaluate(self, predictions, references, eval_types=None, points=None):
+        def ends_with_bracketed_line(text):
+            lines = text.splitlines()
+            if not lines:
+                return False
+            last_line = lines[-1].strip()
+            return last_line.startswith("[") and last_line.endswith("]")
+
+        def extract_text_between_brackets(input_string):
+            last_line = input_string.splitlines()[-1].strip()
+            matches = re.findall(r"\[(.*?)\]", last_line)
+            return matches[-1] if matches else last_line
+
+        def normalize(value):
+            value = _parse_jsonish(value)
+            if isinstance(value, list):
+                return tuple(normalize(item) for item in value)
+            value = unicodedata.normalize("NFKC", str(value))
+            value = re.sub(r"\s+", " ", value.strip().lower())
+            return value.strip(" \t\n\r\"'`[]().,;:!?")
+
+        def answer_options(reference):
+            reference = _parse_jsonish(reference)
+            if isinstance(reference, list):
+                return [normalize(option) for option in reference]
+            return [normalize(reference)]
+
+        correct = 0
+        scores = []
+        valid_formats = []
+
+        for prediction, reference in zip(predictions, references):
+            prediction = prediction.strip().lower()
+            valid = ends_with_bracketed_line(prediction)
+            model_answer = extract_text_between_brackets(prediction) if prediction else ""
+            valid_formats.append(valid)
+
+            prediction_norm = normalize(model_answer)
+            options = answer_options(reference)
+            if prediction_norm not in options and any(isinstance(option, tuple) for option in options) and isinstance(prediction_norm, str) and "," in prediction_norm:
+                prediction_norm = tuple(normalize(part) for part in prediction_norm.split(","))
+
+            match = int(prediction_norm in options)
+            correct += match
+            scores.append(match)
+
+        total = len(predictions)
+        return {
+            "accuracy": (correct / total * 100) if total > 0 else 0,
+            "correct": correct,
+            "total": total,
+            "per_example_accuracy": scores,
+            "valid_format_rate": (sum(valid_formats) / total) if total > 0 else 0,
         }
