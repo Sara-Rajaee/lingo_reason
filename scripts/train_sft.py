@@ -97,7 +97,7 @@ def format_with_chat_template(rows, tokenizer, no_reasoning=False):
         if no_reasoning:
             assistant = r['final_answer']
         else:
-            assistant = f"<think>\n{r['reasoning']}\n</think>\n\n{r['final_answer']}"
+            assistant = f"<think>\n{r['reasoning']}\n</think>\n\n[{r['final_answer']}]"
         messages = [
             {"role": "user", "content": r["prompt"]},
             {"role": "assistant", "content": assistant},
