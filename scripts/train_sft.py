@@ -42,6 +42,8 @@ def parse_args():
     p.add_argument("--openthoughts-cache", default="data/openthoughts_math_subset.json")
     p.add_argument("--no-reasoning", action="store_true",
                    help="Train on prompt→final_answer only (drop <think> reasoning trace)")
+    p.add_argument("--dedupe-by-prompt", action="store_true",
+                   help="Keep one row per unique prompt (collapses k-sample distillation dups)")
     p.add_argument("--save-steps", type=int, default=200)
     p.add_argument("--logging-steps", type=int, default=10)
     return p.parse_args()
@@ -101,6 +103,16 @@ def main():
     print("Building dataset...")
     rows = build_rows(args)
     print(f"  Collected {len(rows)} rows")
+    if args.dedupe_by_prompt:
+        seen = set()
+        deduped = []
+        for r in rows:
+            if r["prompt"] in seen:
+                continue
+            seen.add(r["prompt"])
+            deduped.append(r)
+        print(f"  Deduped by prompt: {len(rows)} -> {len(deduped)}")
+        rows = deduped
     formatted = format_with_chat_template(rows, tokenizer, no_reasoning=args.no_reasoning)
     full_ds = Dataset.from_list(formatted)
 

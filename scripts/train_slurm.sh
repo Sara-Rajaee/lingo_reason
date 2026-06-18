@@ -24,6 +24,10 @@ NO_REASONING_FLAG=""
 if [ -n "$NO_REASONING" ] && [ "$NO_REASONING" != "0" ]; then
     NO_REASONING_FLAG="--no-reasoning"
 fi
+DEDUPE_FLAG=""
+if [ -n "$DEDUPE_BY_PROMPT" ] && [ "$DEDUPE_BY_PROMPT" != "0" ]; then
+    DEDUPE_FLAG="--dedupe-by-prompt"
+fi
 
 DISTILLED_PATHS_DEFAULT=(
     distilled_results/gpt-oss-120b/lingoly/default/all_gold_outputs.json
@@ -44,7 +48,7 @@ fi
 
 MODEL_SLUG=$(echo "$MODEL" | tr '/' '_' | tr '[:upper:]' '[:lower:]')
 TS=$(date +%Y%m%d_%H%M%S)
-OUT="train_runs/${MODEL_SLUG}_${MODE}_distilled-${DISTILLED_PCT}${NO_REASONING:+_noreason}_${TS}"
+OUT="train_runs/${MODEL_SLUG}_${MODE}_distilled-${DISTILLED_PCT}${NO_REASONING:+_noreason}${DEDUPE_BY_PROMPT:+_dedup}_${TS}"
 
 echo "════════════════════════════════════════════════════════════"
 echo "  lingo_reason SFT Training"
@@ -80,4 +84,5 @@ uv run --no-sync torchrun \
     --grad-accum "$GRAD_ACCUM" \
     --max-seq-length "$MAX_SEQ_LEN" \
     $NO_REASONING_FLAG \
+    $DEDUPE_FLAG \
     --output-dir "$OUT"
