@@ -12,6 +12,7 @@
 
 set -eo pipefail
 
+TRAINER="${TRAINER:-grpo}" #sft/grpo
 MODEL="${MODEL:-Qwen/Qwen3-4B-Thinking-2507}"
 MODE="${MODE:-lora}"
 DISTILLED_PCT="${DISTILLED_PCT:-100}"
@@ -20,6 +21,8 @@ LR="${LR:-2e-4}"
 BATCH_SIZE="${BATCH_SIZE:-1}"
 GRAD_ACCUM="${GRAD_ACCUM:-16}"
 MAX_SEQ_LEN="${MAX_SEQ_LEN:-8192}"
+MAX_COMP_LEN="${MAX_COMP_LEN:-4096}"
+NUM_GENERATION="${NUM_GENERATION:-16}"
 NO_REASONING_FLAG=""
 if [ -n "$NO_REASONING" ] && [ "$NO_REASONING" != "0" ]; then
     NO_REASONING_FLAG="--no-reasoning"
@@ -74,6 +77,7 @@ uv run --no-sync torchrun \
     --standalone \
     --nproc_per_node=8 \
     scripts/train_sft.py \
+    --trainer "$TRAINER" \
     --model "$MODEL" \
     --mode "$MODE" \
     --distilled-paths "${DISTILLED_PATHS[@]}" \
@@ -83,6 +87,8 @@ uv run --no-sync torchrun \
     --batch-size "$BATCH_SIZE" \
     --grad-accum "$GRAD_ACCUM" \
     --max-seq-length "$MAX_SEQ_LEN" \
+    --max-completion-length "$MAX_COMP_LEN" \
+    --num-generations "$NUM_GENERATION" \
     $NO_REASONING_FLAG \
     $DEDUPE_FLAG \
     --output-dir "$OUT"
