@@ -51,10 +51,10 @@ fi
 
 MODEL_SLUG=$(echo "$MODEL" | tr '/' '_' | tr '[:upper:]' '[:lower:]')
 TS=$(date +%Y%m%d_%H%M%S)
-OUT="train_runs/${MODEL_SLUG}_${MODE}_distilled-${DISTILLED_PCT}${NO_REASONING:+_noreason}${DEDUPE_BY_PROMPT:+_dedup}_${TS}"
+OUT="train_runs/${MODEL_SLUG}_${TRAINER}_${MODE}_distilled-${DISTILLED_PCT}${NO_REASONING:+_noreason}${DEDUPE_BY_PROMPT:+_dedup}_${TS}"
 
 echo "════════════════════════════════════════════════════════════"
-echo "  lingo_reason SFT Training"
+echo "  lingo_reason ${TRAINER^^} Training"
 echo "════════════════════════════════════════════════════════════"
 echo "  Job ID:        $SLURM_JOB_ID"
 echo "  Node:          $(hostname -f)"
