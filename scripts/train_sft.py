@@ -5,12 +5,12 @@ mixed with OpenThoughts2 math) and runs TRL SFTTrainer or GRPOTrainer with eithe
 full fine-tuning.
 """
 import argparse
-import os
-import sys
-import math
-import unicodedata
-import ast
 import json
+import math
+import os
+import re
+import sys
+import unicodedata
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -46,6 +46,8 @@ def parse_args():
     p.add_argument("--openthoughts-cache", default="data/openthoughts_math_subset.json")
     p.add_argument("--no-reasoning", action="store_true",
                    help="Train on prompt→final_answer only (drop <think> reasoning trace)")
+    p.add_argument("--dedupe-by-prompt", action="store_true",
+                   help="Keep one row per unique prompt (collapses k-sample distillation dups)")
     p.add_argument("--save-steps", type=int, default=200)
     p.add_argument("--logging-steps", type=int, default=10)
     ## RL training arguments
@@ -54,7 +56,7 @@ def parse_args():
     p.add_argument("--temperature", type=float, default=0.9)
     p.add_argument("--top-p", type=float, default=0.95)
     p.add_argument("--beta", type=float, default=0.0)
-    p.add_argument("--loss-type", choices=["grpo", "bnpo"], default="dapo")
+    p.add_argument("--loss-type", choices=["grpo", "bnpo", "dapo"], default="dapo")
     p.add_argument("--use-vllm", action="store_true")
     return p.parse_args()
 
@@ -91,13 +93,30 @@ def build_rows(args):
     return rows
 
 
+BRACKET_PROMPT_RE = re.compile(r"\[\.\.\.\]|\[\]|square brackets|eckigen Klammern|crochets|corchetes|colchetes|方括号|大괄호|角括弧", re.IGNORECASE)
+BOXED_PROMPT_RE = re.compile(r"\\boxed")
+
+
+def wrap_answer_format(prompt, answer):
+    if not answer:
+        return answer
+    if BRACKET_PROMPT_RE.search(prompt):
+        if not (answer.startswith('[') and answer.endswith(']')):
+            return f"[{answer}]"
+    elif BOXED_PROMPT_RE.search(prompt):
+        if "\\boxed" not in answer:
+            return f"\\boxed{{{answer}}}"
+    return answer
+
+
 def format_with_chat_template(rows, tokenizer, no_reasoning=False):
     out = []
     for r in rows:
+        final_answer = wrap_answer_format(r['prompt'], r['final_answer'])
         if no_reasoning:
-            assistant = r['final_answer']
+            assistant = final_answer
         else:
-            assistant = f"<think>\n{r['reasoning']}\n</think>\n\n{r['final_answer']}"
+            assistant = f"<think>\n{r['reasoning']}\n</think>\n\n{final_answer}"
         messages = [
             {"role": "user", "content": r["prompt"]},
             {"role": "assistant", "content": assistant},
@@ -183,6 +202,16 @@ def main():
     print("Building dataset...")
     rows = build_rows(args)
     print(f"  Collected {len(rows)} rows")
+    if args.dedupe_by_prompt:
+        seen = set()
+        deduped = []
+        for r in rows:
+            if r["prompt"] in seen:
+                continue
+            seen.add(r["prompt"])
+            deduped.append(r)
+        print(f"  Deduped by prompt: {len(rows)} -> {len(deduped)}")
+        rows = deduped
     if args.trainer == "sft":
         formatted = format_with_chat_template(rows, tokenizer, no_reasoning=args.no_reasoning)
     else:
