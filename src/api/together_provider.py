@@ -38,7 +38,7 @@ class TogetherAIProvider(BaseProvider):
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
-            response = await self.client.chat.completions.create(
+            kwargs = dict(
                 model=model_id,
                 messages=messages,
                 reasoning={"enabled": params.get('reasoning', True)},
@@ -46,14 +46,19 @@ class TogetherAIProvider(BaseProvider):
                 max_tokens=params.get('max_tokens', 512),
                 top_p=params.get('top_p', 1),
             )
+            if reasoning_effort is not None:
+                kwargs["reasoning_effort"] = reasoning_effort
+            response = await self.client.chat.completions.create(**kwargs)
             raw_output = response.choices[0].message.content
             
             # Parse reasoning from output
             if "deepseek-r1" in model_id.lower():
                 reasoning, generation = self.parse_reasoning(raw_output, model_id)
-            elif "deepseek-v3" in model_id.lower():
-                reasoning  = response.choices[0].message.reasoning
+            elif "deepseek-v3" in model_id.lower() or "deepseek-v4" in model_id.lower():
+                reasoning = response.choices[0].message.reasoning
                 generation = response.choices[0].message.content
+            else:
+                reasoning, generation = None, raw_output
             return {
                 'reasoning': reasoning,
                 'generation': generation,
