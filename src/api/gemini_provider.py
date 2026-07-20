@@ -8,7 +8,11 @@ class GeminiProvider(BaseProvider):
     
     def __init__(self, config):
         super().__init__(config)
-        self.client = genai.Client(api_key=config['api_key'])
+        # google-genai HttpOptions.timeout is in milliseconds
+        self.client = genai.Client(
+            api_key=config['api_key'],
+            http_options=types.HttpOptions(timeout=int(self.timeout * 1000)),
+        )
     
     async def generate(self, model_id, prompt, params, system_prompt=None, reasoning_effort=None, thinking_budget=0):
         """Generate completion using Gemini asynchronously"""

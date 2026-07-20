@@ -6,7 +6,10 @@ class CohereAPIProvider(BaseProvider):
 
     def __init__(self, config):
         super().__init__(config)
-        self.client = AsyncClientV2(api_key=config['api_key'])
+        self.client = AsyncClientV2(
+            api_key=config['api_key'],
+            timeout=self.timeout,
+        )
 
     async def generate(self, model_id, prompt, params, system_prompt=None, reasoning_effort=None, thinking_budget=0):
         """Generate completion using Cohere asynchronously"""

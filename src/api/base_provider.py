@@ -25,10 +25,17 @@ class BaseProvider(ABC):
         pass
     
     async def _retry_with_backoff(self, func, *args, **kwargs):
-        """Helper method for async retry logic with exponential backoff"""
+        """Helper method for async retry logic with exponential backoff.
+
+        Each attempt is bounded by ``self.timeout`` via ``asyncio.wait_for``.
+        Provider clients should also set HTTP-level timeouts so connections
+        are cancelled promptly; this is a safety net for hung calls.
+        """
         for attempt in range(self.max_retries):
             try:
-                return await func(*args, **kwargs)
+                return await asyncio.wait_for(
+                    func(*args, **kwargs), timeout=self.timeout
+                )
             except Exception as e:
                 if attempt == self.max_retries - 1:
                     raise

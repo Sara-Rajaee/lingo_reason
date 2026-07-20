@@ -7,7 +7,7 @@ class TogetherAIProvider(BaseProvider):
     
     def __init__(self, config):
         super().__init__(config)
-        self.client = AsyncTogether(api_key=config['api_key'])
+        self.client = AsyncTogether(api_key=config['api_key'], timeout=self.timeout)
     
     def parse_reasoning(self, text, model_id):
         """
