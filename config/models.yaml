@@ -89,3 +89,40 @@ models:
       max_tokens: 32768
       top_p: 1
       reasoning: False
+
+  - name: "qwen3-sft"
+    provider: "gpt_oss"
+    model_id: "/scratch-shared/srajaee/lingo-reason/models/train_runs/sft/qwen_qwen3-4b-thinking-2507_full_2e-4_distilled-100_20260616_093807" #"/scratch-shared/srajaee/lingo-reason/models/train_runs/{sft}/qwen_qwen3-4b-thinking-2507_full_distilled-100_20260615_125809"
+    default_params:
+      temperature: 0
+      max_tokens: 32768
+      top_p: 1
+      reasoning: True
+  
+  - name: "qwen3-4b-thinking"
+    provider: "gpt_oss"
+    model_id: "Qwen/Qwen3-4B-Thinking-2507"
+    default_params:
+      temperature: 0
+      max_tokens: 32768
+      top_p: 1
+      reasoning: True
+
+  - name: "qwen3-sft-v2"
+    provider: "gpt_oss"
+    model_id: "/scratch-shared/srajaee/lingo-reason/models/train_runs/sft/qwen_qwen3-4b-thinking-2507_full_2e-4_distilled-100_20260616_093807" #"/scratch-shared/srajaee/lingo-reason/models/train_runs/{sft}/qwen_qwen3-4b-thinking-2507_full_distilled-100_20260615_125809"
+    default_params:
+      temperature: 0
+      max_tokens: 32768
+      top_p: 1
+      reasoning: True
+  
+  - name: "gemini-3.5-flash"
+    provider: "gemini"
+    model_id: "gemini-3.5-flash"
+    default_params:
+      temperature: 0
+      max_tokens: 26600 #26600 - 24576 = 2024
+      top_p: 1
+      thinking_budget: 24576
+      reasoning: True

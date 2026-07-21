@@ -18,6 +18,12 @@ class GeminiProvider(BaseProvider):
             loop = asyncio.get_event_loop()
             
             def _sync_generate():
+                if model_id.startswith("gemini-3"):
+                    thinking_config = types.ThinkingConfig(thinking_level="high",
+                                                            include_thoughts=True)
+                else:
+                    thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget,
+                                                            include_thoughts=True)
                 response = self.client.models.generate_content(
                     model=model_id,
                     contents=prompt,
@@ -26,13 +32,8 @@ class GeminiProvider(BaseProvider):
                         temperature=params.get('temperature', 0),
                         max_output_tokens=params.get('max_tokens', 512),
                         top_p=params.get('top_p', 1),
-                        thinking_config=types.ThinkingConfig(thinking_budget=thinking_budget, 
-                                                            include_thoughts=True),
+                        thinking_config=thinking_config,
                         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-                        # Turn off thinking:
-                        # thinking_config=types.ThinkingConfig(thinking_budget=0)
-                        # Turn on dynamic thinking:
-                        # thinking_config=types.ThinkingConfig(thinking_budget=-1)
                     )
                 )
 

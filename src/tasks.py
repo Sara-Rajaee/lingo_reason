@@ -854,6 +854,13 @@ class MuLRBenchmark(BaseBenchmark):
         split = self.task_config.get('split', 'train')  # no train split, just default
         limit = self.defaults.get('limit_per_subset')
 
+        hints_file = self.task_config.get('hints_file')
+        if hints_file:
+            with open(hints_file) as f:
+                self.hints = json.load(f)
+        else:
+            self.hints = {}
+
         print(f"Loading {name} ({self.subset})...")
         ds = load_dataset('json', data_files="data/linguistic_reasoning_wmt_2025_test.json", split=split)
 
@@ -888,7 +895,16 @@ class MuLRBenchmark(BaseBenchmark):
     
     def prepare_prompt(self, example):
         # This benchmark has prompts readily formatted.
-        return example.prompt + mulr_instruction[self.subset]
+        prompt = example.prompt
+        hint = self.hints.get(example.task_lang)
+        if hint:
+            marker = "\nLanguage Meta-Information:"
+            idx = prompt.find(marker)
+            if idx != -1:
+                prompt = prompt[:idx] + "\n" + hint.strip() + prompt[idx:]
+            else:
+                prompt = prompt.rstrip() + "\n" + hint.strip()
+        return prompt + mulr_instruction[self.subset]
 
     def evaluate(self, predictions: List[str], references: List[str], eval_types: Optional[List[str]]=None, points: Optional[List[float]] =None) -> dict:
         """Evaluate using exact match (case-insensitive) and chrF score, weighted by points."""

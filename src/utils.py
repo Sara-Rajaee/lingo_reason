@@ -70,7 +70,7 @@ def save_results(results, output_dir, model_name, task_name, subset, split, reas
 
 def get_output_dir():
     """Create timestamped output directory"""
-    return 'results'
+    return 'results_analysis'
 
 def save_distillation_results(results, output_dir, model_name, task_name, subset, split):
     """Save sampled distillation outputs and the samples that matched the gold answer."""

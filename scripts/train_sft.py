@@ -12,6 +12,7 @@ import unicodedata
 import ast
 import json
 from pathlib import Path
+import re
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -56,6 +57,13 @@ def parse_args():
     p.add_argument("--beta", type=float, default=0.0)
     p.add_argument("--loss-type", choices=["grpo", "bnpo"], default="dapo")
     p.add_argument("--use-vllm", action="store_true")
+    p.add_argument("--vllm-mode", choices=["colocate", "server"], default="colocate",
+                   help="colocate: share training GPUs with vLLM. server: connect to a "
+                        "separate `trl vllm-serve` process on dedicated GPUs.")
+    p.add_argument("--vllm-server-host", default="0.0.0.0")
+    p.add_argument("--vllm-server-port", type=int, default=8000)
+    p.add_argument("--vllm-gpu-memory-utilization", type=float, default=0.3,
+                   help="Only used in colocate mode.")
     return p.parse_args()
 
 
@@ -271,6 +279,10 @@ def main():
             beta=args.beta,
             loss_type=args.loss_type,
             use_vllm=args.use_vllm,
+            vllm_mode=args.vllm_mode,
+            vllm_server_host=args.vllm_server_host,
+            vllm_server_port=args.vllm_server_port,
+            vllm_gpu_memory_utilization=args.vllm_gpu_memory_utilization,
             logging_steps=args.logging_steps,
             save_steps=args.save_steps,
             save_total_limit=3,
