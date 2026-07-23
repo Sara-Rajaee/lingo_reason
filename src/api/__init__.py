@@ -5,6 +5,8 @@ class ProviderFactory:
         'openai': ('.openai_provider', 'OpenAIProvider'),
         'cohere': ('.cohere_provider', 'CohereAPIProvider'),
         'gpt_oss': ('.gpt_oss_provider', 'GptOssProvider'),
+        'anthropic': ('.anthropic_provider', 'AnthropicProvider'),
+        'bedrock': ('.bedrock_provider', 'BedrockProvider'),
     }
 
     @staticmethod
