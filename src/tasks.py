@@ -525,7 +525,7 @@ class LinguiniBenchmark(BaseBenchmark):
         if self.task_config.get("explain"):
             return header + (
                 "Give your final answer, then an explanation of how you arrived at it.\n"
-                "Summarize your linguistic analysis, and use tables or schemata to illustrate derived rules. \n"
+                "Summarize your linguistic analysis, and use tables or schemata (in markdown) to illustrate derived rules. \n"
                 "Do not write a long chain-of-thought or lengthy narration. \n\n"
                 "Use this format exactly:\n"
                 "Answer:\n"
