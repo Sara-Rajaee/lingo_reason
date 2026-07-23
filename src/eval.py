@@ -212,7 +212,7 @@ class Evaluator:
         # Use 'generation' (without reasoning tokens) for evaluation
         # Points can be used to weigh examples
         # Eval types are relevant for linguistic reasoning with diverse tasks types
-        predictions = [output['generation'] for output in raw_outputs]
+        predictions = [output['generation'] or "" for output in raw_outputs]
         references = [output['target_text'] for output in raw_outputs]
         eval_types = [output['eval_type'] for output in raw_outputs]
         points = [output['points'] for output in raw_outputs]
