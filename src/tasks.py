@@ -17,6 +17,7 @@ try:
 except ImportError:
     parse = StringExtractionConfig = LatexExtractionConfig = verify = None
 import re
+import math
 import subprocess
 import tempfile
 import os
@@ -503,27 +504,34 @@ class LinguiniBenchmark(BaseBenchmark):
 
         When ``task_config['explain']`` is true, ask for a short solution-path
         explanation after the answer (for human inspection).
+
+        When ``task_config['context']`` is false, omit the puzzle context
+        (question text, including any language name, is kept as-is).
         """
-        header = (
-            "You are solving a linguistic puzzle. "
-            "All the information you need is contained in the context below — "
-            "no prior knowledge of this language is required.\n\n"
-            f"Context:\n{example.context}\n\n"
-            f"Question:\n{example.question}\n\n"
-        )
+        if self.task_config.get("context", True):
+            header = (
+                "You are solving a linguistic puzzle. "
+                "All the information you need is contained in the context below — "
+                "no prior knowledge of this language is required.\n\n"
+                f"Context:\n{example.context}\n\n"
+                f"Question:\n{example.question}\n\n"
+            )
+        else:
+            header = (
+                "You are solving a linguistic puzzle. "
+                "No puzzle context is provided.\n\n"
+                f"Question:\n{example.question}\n\n"
+            )
         if self.task_config.get("explain"):
             return header + (
-                "Give your final answer, then a short explanation of how you "
-                "arrived at it.\n"
-                "The explanation should be brief (about 2–4 sentences), focused "
-                "on the key steps in the solution path, so an expert can check "
-                "and inspect its correctness. Do not write a long "
-                "chain-of-thought.\n\n"
+                "Give your final answer, then an explanation of how you arrived at it.\n"
+                "Summarize your linguistic analysis, and use tables or schemata to illustrate derived rules. \n"
+                "Do not write a long chain-of-thought or lengthy narration. \n\n"
                 "Use this format exactly:\n"
                 "Answer:\n"
                 "<your final answer only — the requested word(s) or phrase(s)>\n\n"
                 "Explanation:\n"
-                "<short solution-path explanation>\n"
+                "<your explanation>\n"
             )
         return header + (
             "Answer with only the requested word or phrase. "
@@ -531,27 +539,32 @@ class LinguiniBenchmark(BaseBenchmark):
         )
 
     @staticmethod
-    def _extract_answer_for_eval(text: Optional[str]) -> str:
-        """Pull the Answer block out of an explain-format generation.
+    def _extract_explained_parts(text: Optional[str]) -> tuple:
+        """Split an explain-format generation into (answer, explanation).
 
-        Falls back to the full text (minus a trailing Explanation: section)
-        when labels are missing, so scoring still works on imperfect formats.
+        Falls back gracefully when labels are missing so scoring still works.
         """
         if text is None:
-            return ""
+            return "", ""
         text = str(text).strip()
         if not text:
-            return ""
-        # Preferred: Answer: ... Explanation:
+            return "", ""
         match = re.search(
-            r"(?is)\banswer\s*:\s*(.*?)(?:\n\s*explanation\s*:|\Z)",
+            r"(?is)\banswer\s*:\s*(.*?)(?:\n\s*explanation\s*:\s*(.*))?\Z",
             text,
         )
         if match:
-            return match.group(1).strip()
-        # Fallback: strip a trailing Explanation: block
+            return (match.group(1) or "").strip(), (match.group(2) or "").strip()
         parts = re.split(r"(?is)\n\s*explanation\s*:", text, maxsplit=1)
-        return parts[0].strip()
+        if len(parts) == 2:
+            return parts[0].strip(), parts[1].strip()
+        return text, ""
+
+    @classmethod
+    def _extract_answer_for_eval(cls, text: Optional[str]) -> str:
+        """Pull the Answer block out of an explain-format generation."""
+        answer, _ = cls._extract_explained_parts(text)
+        return answer
 
     def evaluate(self, predictions: List[str], references: List[str],
                  eval_types: Optional[List[str]]=None, points: Optional[List[float]] =None) -> dict:
@@ -578,7 +591,6 @@ class LinguiniBenchmark(BaseBenchmark):
                     continue
                 # Strip common numbering: "1. ", "1) ", "(1) ", "- "
                 cleaned = re.sub(r'^(\d+[\.\)]\s*|\(\d+\)\s*|-\s*)', '', line).strip()
-                # Strip trailing whitespace artifacts
                 cleaned = cleaned.rstrip()
                 if cleaned:
                     lines.append(cleaned)
@@ -607,12 +619,20 @@ class LinguiniBenchmark(BaseBenchmark):
         format_clean = 0
         format_line_match = 0
         empty_generations = 0
+        explanations = []
+        extracted_answers = []
+        has_explanation_flags = []
 
         for pred, ref in zip(predictions, references):
-            # Score the answer span only in explain mode (ignore Explanation:).
-            scored_pred = (
-                self._extract_answer_for_eval(pred) if explain_mode else pred
-            )
+            if explain_mode:
+                scored_pred, explanation = self._extract_explained_parts(pred)
+            else:
+                scored_pred, explanation = pred, ""
+            explanations.append(explanation if explanation else None)
+            extracted_answers.append(scored_pred if explain_mode else None)
+            has_explanation = bool(explanation and str(explanation).strip())
+            has_explanation_flags.append(has_explanation)
+
             if scored_pred is None or not str(scored_pred).strip():
                 empty_generations += 1
 
@@ -627,7 +647,7 @@ class LinguiniBenchmark(BaseBenchmark):
             # chrF (full answer)
             chrf_scores.append(_chrf(pred_norm, ref_norm))
 
-            # Line-level accuracy (per-answer-element)
+            # Line-level accuracy (per-answer-element); answer span only in explain mode
             pred_lines = extract_answer_lines(scored_pred)
             ref_lines = extract_answer_lines(ref)
             line_correct = 0
@@ -639,7 +659,7 @@ class LinguiniBenchmark(BaseBenchmark):
             line_correct_list.append(line_correct)
             line_total_list.append(line_total)
 
-            # Format verification (answer span only in explain mode)
+            # Format verification on the answer span (explanations excluded)
             is_clean, _, count_match = format_check(scored_pred, ref)
             format_clean += int(is_clean)
             format_line_match += int(count_match)
@@ -647,13 +667,19 @@ class LinguiniBenchmark(BaseBenchmark):
         total = len(predictions)
         accuracy = (correct / total * 100) if total > 0 else 0.0
         chrf_avg = (sum(chrf_scores) / total * 100) if total > 0 else 0.0
+        # Geometric mean of exact-match accuracy and chrF (both on 0–100 scale).
+        accuracy_chrf_geomean = (
+            math.sqrt(accuracy * chrf_avg) if accuracy > 0.0 and chrf_avg > 0.0 else 0.0
+        )
         total_lines = sum(line_total_list)
         total_line_correct = sum(line_correct_list)
         line_accuracy = (total_line_correct / total_lines * 100) if total_lines > 0 else 0.0
+        explanation_count = sum(1 for flag in has_explanation_flags if flag)
 
-        return {
+        metrics = {
             'accuracy': accuracy,
             'chrf': chrf_avg,
+            'accuracy_chrf_geomean': accuracy_chrf_geomean,
             'line_accuracy': line_accuracy,
             'correct': correct,
             'total': total,
@@ -670,6 +696,15 @@ class LinguiniBenchmark(BaseBenchmark):
                 "line_total": line_total_list,
             },
         }
+        if explain_mode:
+            metrics['explanations'] = explanation_count
+            metrics['explanation_rate'] = (
+                (explanation_count / total * 100) if total > 0 else 0.0
+            )
+            metrics['per_example_scores']['explanations'] = explanations
+            metrics['per_example_scores']['extracted_answers'] = extracted_answers
+            metrics['per_example_scores']['has_explanation'] = has_explanation_flags
+        return metrics
 
 # ---------- WMT24++ ----------
 
