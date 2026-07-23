@@ -124,24 +124,6 @@ models:
       top_p: 1
       reasoning: True
       reasoning_effort: "high"
-  
-  - name: "gpt4o"
-    provider: "openai"
-    model_id: "gpt-4o-2024-05-13"
-    default_params:
-      temperature: 1.0
-      max_tokens: 64000
-      top_p: 1
-      reasoning: True
-
-  - name: "claude-fable-5-bedrock-high"
-    provider: "bedrock"
-    # Bedrock serves Fable only via inference profiles (global/us/eu prefix).
-    model_id: "global.anthropic.claude-fable-5"
-    default_params:
-      max_tokens: 64000
-      reasoning: True
-      reasoning_effort: "high"
 
   - name: "claude-opus-4-8-bedrock-high"
     provider: "bedrock"
@@ -213,4 +195,30 @@ models:
       temperature: 0
       max_tokens: 32768
       top_p: 1
+      reasoning: False
+
+  # --- Heuristic Linguini baselines (no LLM) ---
+  - name: "copy-context"
+    provider: "heuristic"
+    model_id: "copy-context"
+    default_params:
+      temperature: 0
+      seed: 0
+      reasoning: False
+
+  - name: "recombine-char-ngrams"
+    provider: "heuristic"
+    model_id: "recombine-char-ngrams"
+    default_params:
+      temperature: 0
+      seed: 0
+      ngram_size: 3  # character n-gram size
+      reasoning: False
+
+  - name: "lexicon-nn"
+    provider: "heuristic"
+    model_id: "lexicon-nn"
+    default_params:
+      temperature: 0
+      seed: 0
       reasoning: False

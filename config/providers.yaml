@@ -36,3 +36,8 @@ gpt_oss:
   api_key: ${GPT_OSS_API_KEY:-no-key}
   timeout: 600
   max_retries: 3
+
+heuristic:
+  # Non-LLM baselines (copy-context, recombine-char-ngrams, lexicon-nn). No API key required.
+  timeout: 60
+  max_retries: 1
