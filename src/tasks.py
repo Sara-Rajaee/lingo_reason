@@ -520,12 +520,16 @@ class LinguiniBenchmark(BaseBenchmark):
 
         def normalize(text):
             """Normalize whitespace and case for comparison."""
-            return ' '.join(text.strip().lower().split())
+            if text is None:
+                return ""
+            return ' '.join(str(text).strip().lower().split())
 
         def extract_answer_lines(text):
             """Extract clean answer lines, stripping numbering/bullets."""
+            if text is None:
+                return []
             lines = []
-            for line in text.strip().split('\n'):
+            for line in str(text).strip().split('\n'):
                 line = line.strip()
                 if not line:
                     continue
@@ -540,6 +544,8 @@ class LinguiniBenchmark(BaseBenchmark):
         def format_check(pred, ref):
             """Check if prediction has consistent format.
             Returns (is_clean, has_reasoning_leak, line_count_match)."""
+            pred = pred or ""
+            ref = ref or ""
             reasoning_words = ['because', 'therefore', 'the pattern', 'let me',
                              'step 1', 'i notice', 'looking at', 'we can see',
                              'first,', 'analysis', 'observe that']
@@ -557,8 +563,12 @@ class LinguiniBenchmark(BaseBenchmark):
         line_total_list = []
         format_clean = 0
         format_line_match = 0
+        empty_generations = 0
 
         for pred, ref in zip(predictions, references):
+            if pred is None or not str(pred).strip():
+                empty_generations += 1
+
             pred_norm = normalize(pred)
             ref_norm = normalize(ref)
 
@@ -604,6 +614,8 @@ class LinguiniBenchmark(BaseBenchmark):
             'line_total': total_lines,
             'format_clean_rate': (format_clean / total * 100) if total > 0 else 0.0,
             'format_line_match_rate': (format_line_match / total * 100) if total > 0 else 0.0,
+            'empty_generations': empty_generations,
+            'empty_generation_rate': (empty_generations / total * 100) if total > 0 else 0.0,
             "per_example_scores": {
                 "accuracy": scores,
                 "chrf": chrf_scores,
