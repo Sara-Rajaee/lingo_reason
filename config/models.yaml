@@ -8,7 +8,7 @@ models:
       top_p: 1
       reasoning: True
 
-  - name: "deepseek-v4-pro"
+  - name: "deepseek-v4-pro-max"
     provider: "together_ai"
     model_id: "deepseek-ai/DeepSeek-V4-Pro"
     default_params:
@@ -17,6 +17,74 @@ models:
       top_p: 1
       reasoning: True
       reasoning_effort: "max"
+
+  - name: "deepseek-v4-pro-high"
+    provider: "together_ai"
+    model_id: "deepseek-ai/DeepSeek-V4-Pro"
+    default_params:
+      temperature: 1.0
+      max_tokens: 64000
+      top_p: 1
+      reasoning: True
+      reasoning_effort: "high"
+
+  - name: "qwen-3-7-max"
+    provider: "together_ai"
+    model_id: "Qwen/Qwen3.7-Max"
+    default_params:
+      temperature: 0.6
+      max_tokens: 64000
+      top_p: 0.95
+      reasoning: True
+      stream: True
+
+  - name: "glm-5-2-high"
+    provider: "together_ai"
+    model_id: "zai-org/GLM-5.2"
+    default_params:
+      temperature: 1.0
+      max_tokens: 64000
+      top_p: 0.95
+      reasoning: True
+      reasoning_effort: "high" 
+
+  - name: "kimi-k2-6"
+    provider: "together_ai"
+    model_id: "moonshotai/Kimi-K2.6"
+    default_params:
+      temperature: 1.0
+      max_tokens: 64000
+      top_p: 0.95
+      reasoning: True
+
+  - name: "inkling-high"
+    provider: "together_ai"
+    model_id: "thinkingmachines/Inkling"
+    default_params:
+      temperature: 1.0
+      max_tokens: 64000
+      top_p: 0.95
+      reasoning: True
+      reasoning_effort: "high"
+
+  - name: "minimax-m3"
+    provider: "together_ai"
+    model_id: "MiniMaxAI/MiniMax-M3"
+    default_params:
+      temperature: 1.0
+      max_tokens: 64000
+      top_p: 0.95
+      reasoning: True
+
+  - name: "nemotron-3-ultra-medium"
+    provider: "together_ai"
+    model_id: "nvidia/nemotron-3-ultra-550b-a55b"
+    default_params:
+      temperature: 0.3
+      max_tokens: 64000
+      top_p: 0.95
+      reasoning: True
+      reasoning_effort: "medium"
 
   - name: "deepseek-r1"
     provider: "together_ai"
@@ -47,6 +115,43 @@ models:
       thinking_budget: 30744
       reasoning: True
 
+  - name: "gpt5.6-sol-high"
+    provider: "openai"
+    model_id: "gpt-5.6-sol"
+    default_params:
+      temperature: 1.0
+      max_tokens: 64000
+      top_p: 1
+      reasoning: True
+      reasoning_effort: "high"
+  
+  - name: "gpt4o"
+    provider: "openai"
+    model_id: "gpt-4o-2024-05-13"
+    default_params:
+      temperature: 1.0
+      max_tokens: 64000
+      top_p: 1
+      reasoning: True
+
+  - name: "claude-fable-5-bedrock-high"
+    provider: "bedrock"
+    # Bedrock serves Fable only via inference profiles (global/us/eu prefix).
+    model_id: "global.anthropic.claude-fable-5"
+    default_params:
+      max_tokens: 64000
+      reasoning: True
+      reasoning_effort: "high"
+
+  - name: "claude-opus-4-8-bedrock-high"
+    provider: "bedrock"
+    model_id: "global.anthropic.claude-opus-4-8"
+    default_params:
+      max_tokens: 64000
+      reasoning: True
+      reasoning_effort: "high"
+      temperature: 1.0
+
   - name: "gpt-4o"
     provider: "openai"
     model_id: "gpt-4o"
@@ -62,6 +167,16 @@ models:
       temperature: 0
       max_tokens: 10216
       thinking_budget: 8192
+      reasoning: True
+
+  - name: "command-a-plus"
+    provider: "cohere"
+    model_id: "command-a-plus-05-2026"
+    default_params:
+      temperature: 0.6
+      top_p: 0.95
+      max_tokens: 64000
+      thinking_budget: 63500
       reasoning: True
 
   - name: "gpt-oss-20b"

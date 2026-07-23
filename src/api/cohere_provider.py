@@ -30,12 +30,12 @@ class CohereAPIProvider(BaseProvider):
                     "type": "enabled" if params.get('reasoning', True) else "disabled",
                     "token_budget": thinking_budget}
             )
-            output = {"raw_generation": None, "generation": None, "reasoning": None}
-            for content in response.message.content:
+            output = {"raw_generation": "", "generation": "", "reasoning": None}
+            for content in response.message.content or []:
                 if content.type == "thinking":
                     output["reasoning"] = content.thinking
                 if content.type == "text":
-                    output["generation"] = content.text
+                    output["generation"] = content.text or ""
             return output
         
         return await self._retry_with_backoff(_generate)
