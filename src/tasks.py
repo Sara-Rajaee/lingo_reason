@@ -519,7 +519,7 @@ class LinguiniBenchmark(BaseBenchmark):
         else:
             header = (
                 "You are solving a linguistic puzzle. "
-                "No puzzle context is provided.\n\n"
+                "Use your existing knowledge of the given language to solve the puzzle.\n\n"
                 f"Question:\n{example.question}\n\n"
             )
         if self.task_config.get("explain"):
