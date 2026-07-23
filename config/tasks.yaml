@@ -23,6 +23,19 @@ tasks:
       temperature: 0.0
       top_p: 1.0
 
+  linguini-nocontext:
+    benchmark_type: "linguini"
+    dataset_name: "facebook/linguini"
+    split: "test"
+    subsets: ["default"]
+    # Omit puzzle context; keep the question (including language name) as-is.
+    context: false
+    defaults:
+      batch_size: 64
+      max_new_tokens: 8192
+      temperature: 0.0
+      top_p: 1.0
+
   mmmlu:
     benchmark_type: "mmmlu"
     dataset_name: "CohereLabs/Global-MMLU-Lite"
