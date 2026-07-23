@@ -500,16 +500,58 @@ class LinguiniBenchmark(BaseBenchmark):
 
         The context contains the key information needed to solve the puzzle
         (the model should NOT rely on prior knowledge of the language).
+
+        When ``task_config['explain']`` is true, ask for a short solution-path
+        explanation after the answer (for human inspection).
         """
-        return (
+        header = (
             "You are solving a linguistic puzzle. "
             "All the information you need is contained in the context below — "
             "no prior knowledge of this language is required.\n\n"
             f"Context:\n{example.context}\n\n"
             f"Question:\n{example.question}\n\n"
+        )
+        if self.task_config.get("explain"):
+            return header + (
+                "Give your final answer, then a short explanation of how you "
+                "arrived at it.\n"
+                "The explanation should be brief (about 2–4 sentences), focused "
+                "on the key steps in the solution path, so an expert can check "
+                "and inspect its correctness. Do not write a long "
+                "chain-of-thought.\n\n"
+                "Use this format exactly:\n"
+                "Answer:\n"
+                "<your final answer only — the requested word(s) or phrase(s)>\n\n"
+                "Explanation:\n"
+                "<short solution-path explanation>\n"
+            )
+        return header + (
             "Answer with only the requested word or phrase. "
             "Do not include explanations in your final answer.\n\n"
         )
+
+    @staticmethod
+    def _extract_answer_for_eval(text: Optional[str]) -> str:
+        """Pull the Answer block out of an explain-format generation.
+
+        Falls back to the full text (minus a trailing Explanation: section)
+        when labels are missing, so scoring still works on imperfect formats.
+        """
+        if text is None:
+            return ""
+        text = str(text).strip()
+        if not text:
+            return ""
+        # Preferred: Answer: ... Explanation:
+        match = re.search(
+            r"(?is)\banswer\s*:\s*(.*?)(?:\n\s*explanation\s*:|\Z)",
+            text,
+        )
+        if match:
+            return match.group(1).strip()
+        # Fallback: strip a trailing Explanation: block
+        parts = re.split(r"(?is)\n\s*explanation\s*:", text, maxsplit=1)
+        return parts[0].strip()
 
     def evaluate(self, predictions: List[str], references: List[str],
                  eval_types: Optional[List[str]]=None, points: Optional[List[float]] =None) -> dict:
@@ -517,6 +559,7 @@ class LinguiniBenchmark(BaseBenchmark):
         assert len(predictions) == len(references), (
             f"Mismatch: {len(predictions)} predictions vs {len(references)} references"
         )
+        explain_mode = bool(self.task_config.get("explain"))
 
         def normalize(text):
             """Normalize whitespace and case for comparison."""
@@ -566,10 +609,14 @@ class LinguiniBenchmark(BaseBenchmark):
         empty_generations = 0
 
         for pred, ref in zip(predictions, references):
-            if pred is None or not str(pred).strip():
+            # Score the answer span only in explain mode (ignore Explanation:).
+            scored_pred = (
+                self._extract_answer_for_eval(pred) if explain_mode else pred
+            )
+            if scored_pred is None or not str(scored_pred).strip():
                 empty_generations += 1
 
-            pred_norm = normalize(pred)
+            pred_norm = normalize(scored_pred)
             ref_norm = normalize(ref)
 
             # Exact match (full answer)
@@ -581,7 +628,7 @@ class LinguiniBenchmark(BaseBenchmark):
             chrf_scores.append(_chrf(pred_norm, ref_norm))
 
             # Line-level accuracy (per-answer-element)
-            pred_lines = extract_answer_lines(pred)
+            pred_lines = extract_answer_lines(scored_pred)
             ref_lines = extract_answer_lines(ref)
             line_correct = 0
             line_total = len(ref_lines)
@@ -592,8 +639,8 @@ class LinguiniBenchmark(BaseBenchmark):
             line_correct_list.append(line_correct)
             line_total_list.append(line_total)
 
-            # Format verification
-            is_clean, _, count_match = format_check(pred, ref)
+            # Format verification (answer span only in explain mode)
+            is_clean, _, count_match = format_check(scored_pred, ref)
             format_clean += int(is_clean)
             format_line_match += int(count_match)
 

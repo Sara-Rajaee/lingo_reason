@@ -10,6 +10,19 @@ tasks:
       temperature: 0.0
       top_p: 1.0
 
+  linguini-explain:
+    benchmark_type: "linguini"
+    dataset_name: "facebook/linguini"
+    split: "test"
+    subsets: ["default"]
+    # Ask for a short solution-path explanation after the answer (human-readable).
+    explain: true
+    defaults:
+      batch_size: 64
+      max_new_tokens: 8192
+      temperature: 0.0
+      top_p: 1.0
+
   mmmlu:
     benchmark_type: "mmmlu"
     dataset_name: "CohereLabs/Global-MMLU-Lite"
