@@ -524,8 +524,9 @@ class LinguiniBenchmark(BaseBenchmark):
             )
         if self.task_config.get("explain"):
             return header + (
-                "Give your final answer, then an explanation of how you arrived at it.\n"
-                "Summarize your linguistic analysis, and use tables or schemata (in markdown) to illustrate derived rules. \n"
+                "Give your final answer, then an explanation of how you arrived at it.\n\n"
+                "In the final answer, only include the requested word(s) or phrase(s), without markdown. \n"
+                "In the explanation, summarize your linguistic analysis, and use tables or schemata (in markdown) to illustrate derived rules. \n"
                 "Do not write a long chain-of-thought or lengthy narration. \n\n"
                 "Use this format exactly:\n"
                 "Answer:\n"
@@ -538,9 +539,29 @@ class LinguiniBenchmark(BaseBenchmark):
             "Do not include explanations in your final answer.\n\n"
         )
 
-    @staticmethod
-    def _extract_explained_parts(text: Optional[str]) -> tuple:
+    # Markdown / plain section labels used by models (e.g. Command A+: **Answer:**)
+    _ANSWER_LABEL_RE = re.compile(
+        r"(?is)^\s*(?:\*{1,3}|_{1,3}|#{1,6})?\s*answer\s*(?:\*{1,3}|_{1,3})?\s*:?\s*"
+    )
+    _EXPLANATION_SPLIT_RE = re.compile(
+        r"(?is)\n\s*(?:\*{1,3}|_{1,3}|#{1,6})?\s*explanation\s*(?:\*{1,3}|_{1,3})?\s*:?\s*"
+    )
+    # Same label when it appears at the start of the string (no leading newline)
+    _EXPLANATION_SPLIT_START_RE = re.compile(
+        r"(?is)^\s*(?:\*{1,3}|_{1,3}|#{1,6})?\s*explanation\s*(?:\*{1,3}|_{1,3})?\s*:?\s*"
+    )
+
+    @classmethod
+    def _extract_explained_parts(cls, text: Optional[str]) -> tuple:
         """Split an explain-format generation into (answer, explanation).
+
+        Handles plain and markdown-bold labels used by various models, e.g.::
+
+            Answer: ...
+            Explanation: ...
+
+            **Answer:** ...
+            **Explanation:** ...
 
         Falls back gracefully when labels are missing so scoring still works.
         """
@@ -549,16 +570,31 @@ class LinguiniBenchmark(BaseBenchmark):
         text = str(text).strip()
         if not text:
             return "", ""
-        match = re.search(
-            r"(?is)\banswer\s*:\s*(.*?)(?:\n\s*explanation\s*:\s*(.*))?\Z",
-            text,
-        )
-        if match:
-            return (match.group(1) or "").strip(), (match.group(2) or "").strip()
-        parts = re.split(r"(?is)\n\s*explanation\s*:", text, maxsplit=1)
-        if len(parts) == 2:
-            return parts[0].strip(), parts[1].strip()
-        return text, ""
+
+        # Prefer splitting on an Explanation label (required when present).
+        # Using split avoids the classic optional-group bug where a trailing
+        # `(?:explanation...)?` lets the answer span swallow the whole text.
+        parts = cls._EXPLANATION_SPLIT_RE.split(text, maxsplit=1)
+        if len(parts) == 1:
+            # Explanation label at the very start (no answer section)
+            start_parts = cls._EXPLANATION_SPLIT_START_RE.split(text, maxsplit=1)
+            if len(start_parts) == 2 and start_parts[0].strip() == "":
+                return "", start_parts[1].strip()
+            # No explanation label — treat whole text as answer (strip Answer:)
+            answer = cls._ANSWER_LABEL_RE.sub("", text, count=1).strip()
+            answer = re.sub(r"^\*{1,3}\s*", "", answer).strip()
+            return answer, ""
+
+        before, explanation = parts[0], parts[1]
+        # Drop a leading Answer: / **Answer:** label from the answer span
+        answer = cls._ANSWER_LABEL_RE.sub("", before.strip(), count=1).strip()
+        # Command A+ often leaves a dangling '**' after **Answer:**
+        answer = re.sub(r"^\*{1,3}\s*", "", answer).strip()
+        answer = re.sub(r"\s*\*{1,3}\s*$", "", answer).strip()
+        explanation = explanation.strip()
+        # Drop a leftover leading '**' on the explanation body
+        explanation = re.sub(r"^\*{1,3}\s*", "", explanation).strip()
+        return answer, explanation
 
     @classmethod
     def _extract_answer_for_eval(cls, text: Optional[str]) -> str:

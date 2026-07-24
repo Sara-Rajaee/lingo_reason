@@ -24,6 +24,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+from src.tasks import LinguiniBenchmark  # noqa: E402
 
 _CONTEXT_RE = re.compile(
     r"(?is)Context:\s*(.*?)\n\s*Question:\s*(.*?)(?:\n\s*(?:Give your|Answer with|Use this)|\Z)"
@@ -72,8 +75,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--model-label",
         type=str,
+        default="System A",
+        help="Blind placeholder name for the model in the title (default: System A)",
+    )
+    p.add_argument(
+        "--task",
+        type=str,
         default=None,
-        help="Blind label for the system (default: inferred from path, e.g. System A)",
+        help="Task name for the title (default: inferred from path, e.g. linguini-explain)",
     )
     p.add_argument(
         "--show-gold",
@@ -86,11 +95,6 @@ def parse_args() -> argparse.Namespace:
         help="Include automatic metric scores (off by default)",
     )
     p.add_argument(
-        "--show-model-name",
-        action="store_true",
-        help="Print the real model directory name on the cover",
-    )
-    p.add_argument(
         "--keep-intermediates",
         action="store_true",
         help="Also write .md and .html next to the PDF",
@@ -98,8 +102,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--title",
         type=str,
-        default="Linguini Explain — Human Jury Packet",
-        help="Document title",
+        default=None,
+        help="Override document title (default: '<task> -- <model-label>')",
     )
     return p.parse_args()
 
@@ -111,14 +115,17 @@ def load_outputs(path: Path) -> List[Dict[str, Any]]:
     return data
 
 
-def infer_model_dirname(raw_path: Path) -> str:
-    # .../linguini-explain/<model_dir>/default/raw_outputs.json
+def infer_task_name(raw_path: Path) -> str:
+    """Infer task folder name from results/.../<task>/<model>/... paths."""
     parts = raw_path.resolve().parts
+    for name in ("linguini-explain", "linguini-nocontext", "linguini"):
+        if name in parts:
+            return name
+    # Fallback: parent of model dir → .../<task>/<model>/default/raw_outputs.json
     try:
-        idx = parts.index("linguini-explain")
-        return parts[idx + 1]
-    except (ValueError, IndexError):
-        return raw_path.parent.parent.name
+        return raw_path.parent.parent.parent.name
+    except IndexError:
+        return "linguini-explain"
 
 
 def extract_context_question(item: Dict[str, Any]) -> Tuple[str, str]:
@@ -134,28 +141,27 @@ def extract_context_question(item: Dict[str, Any]) -> Tuple[str, str]:
 
 
 def get_answer(item: Dict[str, Any]) -> str:
+    # Prefer re-parsing generation so improved extractors apply to old runs.
+    gen = item.get("generation") or item.get("raw_generation") or ""
+    if gen:
+        answer, _ = LinguiniBenchmark._extract_explained_parts(gen)
+        if answer.strip():
+            return answer.strip()
     ans = item.get("extracted_answer")
     if ans is not None and str(ans).strip():
         return str(ans).strip()
-    gen = item.get("generation") or ""
-    # Lightweight fallback if fields missing
-    m = re.search(
-        r"(?is)\banswer\s*:\s*(.*?)(?:\n\s*explanation\s*:|\Z)",
-        gen,
-    )
-    if m:
-        return m.group(1).strip()
     return str(gen).strip()
 
 
 def get_explanation(item: Dict[str, Any]) -> str:
+    gen = item.get("generation") or item.get("raw_generation") or ""
+    if gen:
+        _, explanation = LinguiniBenchmark._extract_explained_parts(gen)
+        if explanation.strip():
+            return explanation.strip()
     exp = item.get("explanation")
     if exp is not None and str(exp).strip():
         return str(exp).strip()
-    gen = item.get("generation") or ""
-    parts = re.split(r"(?is)\n\s*explanation\s*:", gen, maxsplit=1)
-    if len(parts) == 2:
-        return parts[1].strip()
     return ""
 
 
@@ -172,39 +178,11 @@ def build_markdown(
     items: List[Dict[str, Any]],
     *,
     title: str,
-    model_label: str,
-    real_model_name: Optional[str],
     show_gold: bool,
     show_scores: bool,
 ) -> str:
     lines: List[str] = []
     lines.append(f"# {title}")
-    lines.append("")
-    lines.append("## Jury instructions")
-    lines.append("")
-    lines.append(
-        "You are reviewing solutions to International Linguistics Olympiad–style "
-        "puzzles. Each item shows the **puzzle data**, the **question**, the "
-        "system's **answer**, and a short **explanation** of how the answer was obtained."
-    )
-    lines.append("")
-    lines.append("For each problem, please mark:")
-    lines.append("")
-    lines.append("1. **Answer correctness** — Correct / Partially correct / Incorrect")
-    lines.append(
-        "2. **Explanation quality** — Does the stated solution path make linguistic sense? "
-        "(Sound / Partially sound / Unsound / Missing)"
-    )
-    lines.append(
-        "3. **Notes** — Brief comments (errors in analysis, lucky guesses, formatting issues, etc.)"
-    )
-    lines.append("")
-    lines.append(f"**System under review:** {model_label}")
-    if real_model_name:
-        lines.append(f"**Model directory:** `{real_model_name}`")
-    lines.append(f"**Number of problems:** {len(items)}")
-    lines.append("")
-    lines.append("---")
     lines.append("")
 
     for i, item in enumerate(items, start=1):
@@ -264,17 +242,9 @@ def build_markdown(
             )
             lines.append("")
 
-        lines.append("## Jury marks")
+        lines.append("## Jury notes")
         lines.append("")
-        lines.append("| Criterion | Mark |")
-        lines.append("|---|---|")
-        lines.append("| Answer correctness | ☐ Correct ☐ Partial ☐ Incorrect |")
-        lines.append(
-            "| Explanation quality | ☐ Sound ☐ Partial ☐ Unsound ☐ Missing |"
-        )
-        lines.append("| Confidence in judgment | ☐ High ☐ Medium ☐ Low |")
-        lines.append("")
-        lines.append("**Notes:**")
+        lines.append("____________________________________________________________________")
         lines.append("")
         lines.append("____________________________________________________________________")
         lines.append("")
@@ -439,8 +409,9 @@ def main() -> None:
     if not items:
         raise SystemExit("No problems to include after filtering.")
 
-    real_model = infer_model_dirname(raw_path)
-    model_label = args.model_label or "System A"
+    task = args.task or infer_task_name(raw_path)
+    model_label = args.model_label
+    title = args.title or f"{task} -- {model_label}"
     out_pdf = (
         args.output.expanduser().resolve()
         if args.output
@@ -449,13 +420,11 @@ def main() -> None:
 
     md = build_markdown(
         items,
-        title=args.title,
-        model_label=model_label,
-        real_model_name=real_model if args.show_model_name else None,
+        title=title,
         show_gold=args.show_gold,
         show_scores=args.show_scores,
     )
-    html_doc = markdown_to_html(md, args.title)
+    html_doc = markdown_to_html(md, title)
 
     if args.keep_intermediates:
         md_out = out_pdf.with_suffix(".md")
