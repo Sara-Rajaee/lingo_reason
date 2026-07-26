@@ -3,6 +3,7 @@ together
 google-genai
 cohere
 openai
+anthropic
 datasets<4.0.0
 pyyaml
 python-dotenv
@@ -14,6 +15,7 @@ unbabel-comet
 torch
 math_verify
 litellm
+boto3
 python-iso639
 regex
 sympy

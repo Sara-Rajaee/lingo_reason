@@ -212,7 +212,7 @@ class Evaluator:
         # Use 'generation' (without reasoning tokens) for evaluation
         # Points can be used to weigh examples
         # Eval types are relevant for linguistic reasoning with diverse tasks types
-        predictions = [output['generation'] for output in raw_outputs]
+        predictions = [output['generation'] or "" for output in raw_outputs]
         references = [output['target_text'] for output in raw_outputs]
         eval_types = [output['eval_type'] for output in raw_outputs]
         points = [output['points'] for output in raw_outputs]
@@ -230,6 +230,20 @@ class Evaluator:
                     'bleu': per_example_scores['bleu'][i] if 'bleu' in per_example_scores else None,
                     'chrfpp': per_example_scores['chrfpp'][i] if 'chrfpp' in per_example_scores else None
                 }
+                if 'accuracy' in per_example_scores:
+                    output['scores']['accuracy'] = per_example_scores['accuracy'][i]
+                if 'chrf' in per_example_scores:
+                    output['scores']['chrf'] = per_example_scores['chrf'][i]
+                if 'line_correct' in per_example_scores:
+                    output['scores']['line_correct'] = per_example_scores['line_correct'][i]
+                if 'line_total' in per_example_scores:
+                    output['scores']['line_total'] = per_example_scores['line_total'][i]
+                if 'extracted_answers' in per_example_scores:
+                    output['extracted_answer'] = per_example_scores['extracted_answers'][i]
+                if 'explanations' in per_example_scores:
+                    output['explanation'] = per_example_scores['explanations'][i]
+                if 'has_explanation' in per_example_scores:
+                    output['has_explanation'] = per_example_scores['has_explanation'][i]
                 if self.task_config['defaults'].get('include_comet', False):
                      output['scores'].update({
                     'xcomet-xl': per_example_scores['xcomet-xl'][i] if 'xcomet-xl' in per_example_scores else None})

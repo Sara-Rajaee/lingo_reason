@@ -90,6 +90,7 @@ class GptOssProvider(BaseProvider):
                 temperature=params.get("temperature", 0),
                 max_tokens=params.get("max_tokens", 4096),
                 top_p=params.get("top_p", 1),
+                timeout=self.timeout,
                 num_retries=self.max_retries,
             )
 

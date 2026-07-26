@@ -6,7 +6,10 @@ class CohereAPIProvider(BaseProvider):
 
     def __init__(self, config):
         super().__init__(config)
-        self.client = AsyncClientV2(api_key=config['api_key'])
+        self.client = AsyncClientV2(
+            api_key=config['api_key'],
+            timeout=self.timeout,
+        )
 
     async def generate(self, model_id, prompt, params, system_prompt=None, reasoning_effort=None, thinking_budget=0):
         """Generate completion using Cohere asynchronously"""
@@ -27,12 +30,12 @@ class CohereAPIProvider(BaseProvider):
                     "type": "enabled" if params.get('reasoning', True) else "disabled",
                     "token_budget": thinking_budget}
             )
-            output = {"raw_generation": None, "generation": None, "reasoning": None}
-            for content in response.message.content:
+            output = {"raw_generation": "", "generation": "", "reasoning": None}
+            for content in response.message.content or []:
                 if content.type == "thinking":
                     output["reasoning"] = content.thinking
                 if content.type == "text":
-                    output["generation"] = content.text
+                    output["generation"] = content.text or ""
             return output
         
         return await self._retry_with_backoff(_generate)
