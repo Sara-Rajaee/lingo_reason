@@ -875,13 +875,13 @@ class IOL2026Benchmark(BaseBenchmark):
         )
         if self.task_config.get("explain"):
             return header + (
-                "Give your final answers, then a short explanation of how you arrived at them.\n\n"
-                "In the final answer, only include the requested word(s) or phrase(s), without markdown.\n"
-                "In the explanation, summarize your linguistic analysis; tables or schemata in markdown are fine.\n"
-                "Do not write a long chain-of-thought or lengthy narration.\n\n"
+                "Give your final answer, then an explanation of how you arrived at it.\n\n"
+                "In the final answer, only include the requested word(s) or phrase(s), without markdown. \n"
+                "In the explanation, summarize your linguistic analysis, and use tables or schemata (in markdown) to illustrate derived rules. \n"
+                "Do not write a long chain-of-thought or lengthy narration. \n\n"
                 "Use this format exactly:\n"
                 "Answer:\n"
-                "<JSON list or one answer per line>\n\n"
+                "<your final answer only — the requested word(s) or phrase(s)>\n\n"
                 "Explanation:\n"
                 "<your explanation>\n"
             )
