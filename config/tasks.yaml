@@ -36,6 +36,30 @@ tasks:
       temperature: 0.0
       top_p: 1.0
 
+  # IOL 2026 individual contest (private HF datasets; requires HF_TOKEN).
+  iol-2026:
+    benchmark_type: "iol2026"
+    dataset_name: "iol-ai-challenge/iol-ai-2026-data"
+    answers_dataset: "iol-ai-challenge/iol-ai-2026-answers"
+    subsets: ["default"]
+    defaults:
+      batch_size: 14
+      max_new_tokens: 8192
+      temperature: 0.0
+      top_p: 1.0
+
+  iol-2026-explain:
+    benchmark_type: "iol2026"
+    dataset_name: "iol-ai-challenge/iol-ai-2026-data"
+    answers_dataset: "iol-ai-challenge/iol-ai-2026-answers"
+    subsets: ["default"]
+    explain: true
+    defaults:
+      batch_size: 14
+      max_new_tokens: 8192
+      temperature: 0.0
+      top_p: 1.0
+
   mmmlu:
     benchmark_type: "mmmlu"
     dataset_name: "CohereLabs/Global-MMLU-Lite"

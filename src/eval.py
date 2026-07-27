@@ -55,7 +55,11 @@ class Evaluator:
             if hasattr(example, 'reference'):
                 target_text = example.reference
             elif hasattr(example, 'answer'):
-                target_text = example.answer
+                ans = example.answer
+                if isinstance(ans, (list, dict)):
+                    target_text = json.dumps(ans, ensure_ascii=False)
+                else:
+                    target_text = ans
             elif hasattr(example, 'original_context'):  # AbsenceBench
                 target_text = example.omitted_context 
             else:
@@ -72,14 +76,20 @@ class Evaluator:
                 source_text = example.question + f"A) {example.A}\nB) {example.B}\nC) {example.C}\nD) {example.D}\n\n"
                 eval_type = 'accuracy'
                 points = 1
-            elif hasattr(example, 'question'): #polymath
+            elif hasattr(example, 'eval_type') and hasattr(example, 'points'):
+                # MuLR + IOL 2026: preserve real eval_type / points
+                eval_type = example.eval_type
+                points = example.points
+                if hasattr(example, 'prompt'):
+                    source_text = example.prompt
+                elif hasattr(example, 'question'):
+                    source_text = example.question
+                else:
+                    source_text = None
+            elif hasattr(example, 'question'): #polymath / linguini
                 source_text = example.question 
                 eval_type = 'accuracy'
                 points = 1
-            elif hasattr(example, 'eval_type') and hasattr(example, 'points'): #MuLR
-                eval_type = example.eval_type
-                source_text = example.prompt
-                points = example.points
             elif hasattr(example, 'original_context'):
                 source_text = example.original_context
                 eval_type = 'f1'
@@ -102,6 +112,8 @@ class Evaluator:
                 'eval_type': eval_type,
                 'points': points
             }
+            if hasattr(example, 'split'):
+                raw_output['split'] = example.split
             if sample_index is not None:
                 raw_output['sample_index'] = sample_index
                 raw_output['sample_id'] = f"{example.id}_sample_{sample_index}"
@@ -216,9 +228,16 @@ class Evaluator:
         references = [output['target_text'] for output in raw_outputs]
         eval_types = [output['eval_type'] for output in raw_outputs]
         points = [output['points'] for output in raw_outputs]
+        splits = [output.get('split') for output in raw_outputs]
         
         # Evaluate
-        metrics = self.benchmark.evaluate(predictions, references, eval_types, points)
+        try:
+            metrics = self.benchmark.evaluate(
+                predictions, references, eval_types, points, splits=splits
+            )
+        except TypeError:
+            # Benchmarks that don't accept splits=
+            metrics = self.benchmark.evaluate(predictions, references, eval_types, points)
 
         # Add per-example scores to raw outputs if available
         if 'per_example_scores' in metrics.keys():
@@ -232,6 +251,8 @@ class Evaluator:
                 }
                 if 'accuracy' in per_example_scores:
                     output['scores']['accuracy'] = per_example_scores['accuracy'][i]
+                if 'em' in per_example_scores:
+                    output['scores']['em'] = per_example_scores['em'][i]
                 if 'chrf' in per_example_scores:
                     output['scores']['chrf'] = per_example_scores['chrf'][i]
                 if 'line_correct' in per_example_scores:

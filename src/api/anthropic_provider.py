@@ -1,4 +1,5 @@
 from anthropic import AsyncAnthropic
+import re
 from .base_provider import BaseProvider
 
 
@@ -14,9 +15,18 @@ class AnthropicProvider(BaseProvider):
 
     @staticmethod
     def _is_adaptive_only(model_id):
-        """Fable / Mythos only support adaptive thinking (no temp/top_p)."""
+        """Models that use adaptive thinking (no temp/top_p / no budget thinking).
+
+        Claude Fable/Mythos 5 and Claude Opus/Sonnet 5 use adaptive thinking +
+        ``output_config.effort`` rather than extended-thinking budgets.
+        """
         model = (model_id or "").lower()
-        return "fable" in model or "mythos" in model
+        if "fable" in model or "mythos" in model:
+            return True
+        # Dateless major-version IDs: claude-opus-5, claude-sonnet-5
+        if re.search(r"claude-(?:opus|sonnet)-5(?:$|[^0-9])", model):
+            return True
+        return False
 
     @staticmethod
     def _extract_output(response):

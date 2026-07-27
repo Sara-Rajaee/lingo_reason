@@ -74,6 +74,8 @@ class BenchmarkFactory:
             return PolyMathBenchmark(task_config, subset)
         elif benchmark_type == 'linguini':
             return LinguiniBenchmark(task_config, subset)
+        elif benchmark_type == 'iol2026':
+            return IOL2026Benchmark(task_config, subset)
         elif benchmark_type == 'mulr':
             return MuLRBenchmark(task_config, subset)
         elif benchmark_type == 'mgsm':
@@ -552,6 +554,21 @@ class LinguiniBenchmark(BaseBenchmark):
     )
 
     @classmethod
+    def _strip_think_tags(cls, text: Optional[str]) -> str:
+        """Drop <think> wrappers so Answer/Explanation parsing sees the real body."""
+        if text is None:
+            return ""
+        s = str(text)
+        # Closed blocks first
+        s = re.sub(r"<think>\s*.*?\s*</think>\s*", "", s, flags=re.DOTALL | re.IGNORECASE)
+        # Close-only: keep text after </think>
+        if "</think>" in s:
+            s = re.split(r"</think>\s*", s, maxsplit=1)[-1]
+        # Unclosed leading <think>
+        s = re.sub(r"^<think>\s*", "", s.strip(), count=1, flags=re.IGNORECASE)
+        return s.strip()
+
+    @classmethod
     def _extract_explained_parts(cls, text: Optional[str]) -> tuple:
         """Split an explain-format generation into (answer, explanation).
 
@@ -563,11 +580,13 @@ class LinguiniBenchmark(BaseBenchmark):
             **Answer:** ...
             **Explanation:** ...
 
+        Also strips ``<think>`` wrappers (closed or unclosed) first.
+
         Falls back gracefully when labels are missing so scoring still works.
         """
         if text is None:
             return "", ""
-        text = str(text).strip()
+        text = cls._strip_think_tags(text)
         if not text:
             return "", ""
 
@@ -663,7 +682,7 @@ class LinguiniBenchmark(BaseBenchmark):
             if explain_mode:
                 scored_pred, explanation = self._extract_explained_parts(pred)
             else:
-                scored_pred, explanation = pred, ""
+                scored_pred, explanation = self._strip_think_tags(pred), ""
             explanations.append(explanation if explanation else None)
             extracted_answers.append(scored_pred if explain_mode else None)
             has_explanation = bool(explanation and str(explanation).strip())
@@ -741,6 +760,271 @@ class LinguiniBenchmark(BaseBenchmark):
             metrics['per_example_scores']['extracted_answers'] = extracted_answers
             metrics['per_example_scores']['has_explanation'] = has_explanation_flags
         return metrics
+
+
+# ---------- IOL 2026 (official contest) ----------
+
+@dataclass
+class IOL2026Example:
+    id: str
+    context: str
+    question: str          # query text
+    answer: list           # gold list (or list-of-lists when eval_type=multi)
+    task_type: str
+    task_lang: str
+    eval_type: str         # "single" | "multi"
+    points: float
+    split: str             # "public" | "private"
+    work_lang: str = ""
+
+
+class IOL2026Benchmark(BaseBenchmark):
+    """IOL 2026 individual contest problems in Linguini format.
+
+    Loads private Hugging Face datasets:
+      - iol-ai-challenge/iol-ai-2026-data   (test.zip → test.csv)
+      - iol-ai-challenge/iol-ai-2026-answers (solution.zip → solution.csv)
+
+    Scoring mirrors the official competition metric: points-weighted
+    item-level exact match and chrF, combined via geometric mean.
+    Requires HF_TOKEN with access to the private org datasets.
+    """
+
+    def load_data(self):
+        from huggingface_hub import hf_hub_download
+        import pandas as pd
+        from src.iol_ai_metric import canon_id, parse_gold_answer
+
+        data_repo = self.task_config.get(
+            "dataset_name", "iol-ai-challenge/iol-ai-2026-data"
+        )
+        answers_repo = self.task_config.get(
+            "answers_dataset", "iol-ai-challenge/iol-ai-2026-answers"
+        )
+        limit = self.defaults.get("limit_per_subset")
+
+        print(f"Loading IOL 2026 data from {data_repo} + {answers_repo}...")
+        test_path = hf_hub_download(
+            repo_id=data_repo,
+            filename="test.zip",
+            repo_type="dataset",
+        )
+        sol_path = hf_hub_download(
+            repo_id=answers_repo,
+            filename="solution.zip",
+            repo_type="dataset",
+        )
+        test = pd.read_csv(test_path, dtype=str, compression="zip").fillna("")
+        sol = pd.read_csv(sol_path, dtype=str, compression="zip").fillna("")
+
+        test["_k"] = test["id"].map(canon_id)
+        sol["_k"] = sol["id"].map(canon_id)
+        merged = test.merge(
+            sol[["_k", "answer", "split", "points", "eval_type", "task_type"]],
+            on="_k",
+            how="inner",
+            suffixes=("", "_sol"),
+        )
+        if len(merged) != len(test):
+            print(
+                f"Warning: joined {len(merged)}/{len(test)} test rows "
+                f"(solution has {len(sol)} rows)"
+            )
+
+        examples = []
+        for _, row in merged.iterrows():
+            eval_type = row.get("eval_type_sol") or row.get("eval_type") or "single"
+            task_type = row.get("task_type_sol") or row.get("task_type") or "unknown"
+            try:
+                points = float(str(row.get("points", "1")).strip() or "1")
+            except ValueError:
+                points = 1.0
+            gold = parse_gold_answer(row["answer"])
+            examples.append(
+                IOL2026Example(
+                    id=str(row["id"]).strip(),
+                    context=str(row.get("context", "")),
+                    question=str(row.get("query", "")),
+                    answer=gold,
+                    task_type=str(task_type),
+                    task_lang=str(row.get("task_lang", "")),
+                    eval_type=str(eval_type).strip().lower() or "single",
+                    points=points,
+                    split=str(row.get("split", "")).strip().lower() or "public",
+                    work_lang=str(row.get("work_lang", "")),
+                )
+            )
+
+        if limit:
+            examples = examples[: int(limit)]
+
+        self.dataset = examples
+        print(f"Loaded {len(examples)} IOL 2026 problems from {self.subset}")
+        return examples
+
+    def prepare_prompt(self, example: IOL2026Example) -> str:
+        header = (
+            "You are solving an International Linguistics Olympiad problem. "
+            "All the information you need is contained in the context below — "
+            "no prior knowledge of this language is required.\n\n"
+            f"Context:\n{example.context}\n\n"
+            f"Question:\n{example.question}\n\n"
+            "Answer every numbered (or lettered) item in the question, in order. "
+            "Return either a JSON list of strings, or one answer per line "
+            "(no numbering).\n\n"
+        )
+        if self.task_config.get("explain"):
+            return header + (
+                "Give your final answers, then a short explanation of how you arrived at them.\n\n"
+                "In the final answer, only include the requested word(s) or phrase(s), without markdown.\n"
+                "In the explanation, summarize your linguistic analysis; tables or schemata in markdown are fine.\n"
+                "Do not write a long chain-of-thought or lengthy narration.\n\n"
+                "Use this format exactly:\n"
+                "Answer:\n"
+                "<JSON list or one answer per line>\n\n"
+                "Explanation:\n"
+                "<your explanation>\n"
+            )
+        return header + (
+            "Answer with only the requested word or phrase. "
+            "Do not include explanations in your final answer.\n"
+        )
+
+    def evaluate(
+        self,
+        predictions: List[str],
+        references: List,
+        eval_types: Optional[List[str]] = None,
+        points: Optional[List[float]] = None,
+        splits: Optional[List[str]] = None,
+    ) -> dict:
+        from src.iol_ai_metric import aggregate, parse_gold_answer, score_problem
+
+        assert len(predictions) == len(references), (
+            f"Mismatch: {len(predictions)} predictions vs {len(references)} references"
+        )
+        n = len(predictions)
+        explain_mode = bool(self.task_config.get("explain"))
+
+        if eval_types is None:
+            eval_types = ["single"] * n
+        if points is None:
+            points = [1.0] * n
+        if splits is None:
+            if self.dataset and len(self.dataset) == n:
+                splits = [ex.split for ex in self.dataset]
+            else:
+                splits = ["public"] * n
+
+        assert len(eval_types) == n and len(points) == n and len(splits) == n
+
+        reasoning_leak_words = [
+            "because", "therefore", "the pattern", "let me",
+            "step 1", "i notice", "looking at", "we can see",
+            "first,", "analysis", "observe that",
+        ]
+
+        def _raw_item_count(pred_str: str) -> int:
+            """Count answer items before pad/truncate (for format_line_match)."""
+            if not pred_str or not str(pred_str).strip():
+                return 0
+            s = str(pred_str).strip()
+            try:
+                parsed = json.loads(s)
+                if isinstance(parsed, list):
+                    return len(parsed)
+            except Exception:
+                pass
+            lines = [re.sub(r"^\d+[\.\)]\s*", "", ln).strip() for ln in s.split("\n")]
+            return len([ln for ln in lines if ln])
+
+        row_scores = []
+        em_list, cf_list = [], []
+        explanations, extracted_answers, has_explanation_flags = [], [], []
+        format_clean = 0
+        format_line_match = 0
+        empty_generations = 0
+
+        for i, (pred, ref) in enumerate(zip(predictions, references)):
+            if explain_mode:
+                scored_pred, explanation = LinguiniBenchmark._extract_explained_parts(pred)
+            else:
+                scored_pred, explanation = LinguiniBenchmark._strip_think_tags(pred), ""
+            explanations.append(explanation if explanation else None)
+            extracted_answers.append(scored_pred if explain_mode else None)
+            has_explanation_flags.append(bool(explanation and str(explanation).strip()))
+
+            if scored_pred is None or not str(scored_pred).strip():
+                empty_generations += 1
+
+            gold = parse_gold_answer(ref)
+            if not gold and self.dataset and i < len(self.dataset):
+                gold = self.dataset[i].answer
+
+            # Format checks on the answer span only (explanations excluded).
+            # Empty answers are not "clean" (and also fail line-count match).
+            pred_text = str(scored_pred or "").strip()
+            has_leak = any(w in pred_text.lower() for w in reasoning_leak_words)
+            is_clean = bool(pred_text) and not has_leak
+            format_clean += int(is_clean)
+            format_line_match += int(_raw_item_count(scored_pred) == len(gold))
+
+            scored = score_problem(
+                scored_pred,
+                gold,
+                eval_type=eval_types[i] or "single",
+                points=points[i] if points[i] is not None else 1.0,
+            )
+            scored["split"] = (splits[i] or "public").lower()
+            row_scores.append(scored)
+            em_list.append(scored["em"])
+            cf_list.append(scored["cf"])
+
+        pub_rows = [r for r in row_scores if r["split"] == "public"]
+        priv_only = [r for r in row_scores if r["split"] == "private"]
+        # Competition private_score = public + private rows together
+        public = aggregate(pub_rows)
+        private = aggregate(pub_rows + priv_only)
+
+        explanation_count = sum(1 for flag in has_explanation_flags if flag)
+        explanation_rate = (
+            round(100.0 * explanation_count / n, 4) if n else 0.0
+        )
+
+        metrics = {
+            # Primary (matches competition private / full score)
+            "score": private["score"],
+            "exact_match": private["exact_match"],
+            "chrf": private["chrf"],
+            "public_score": public["score"],
+            "public_exact_match": public["exact_match"],
+            "public_chrf": public["chrf"],
+            "private_score": private["score"],
+            "private_exact_match": private["exact_match"],
+            "private_chrf": private["chrf"],
+            "total": n,
+            "public_total": len(pub_rows),
+            "private_total": len(priv_only),
+            "format_clean_rate": (format_clean / n * 100) if n else 0.0,
+            "format_line_match_rate": (format_line_match / n * 100) if n else 0.0,
+            "empty_generations": empty_generations,
+            "empty_generation_rate": (empty_generations / n * 100) if n else 0.0,
+            "per_example_scores": {
+                "em": em_list,
+                "accuracy": em_list,  # alias for Evaluator wiring
+                "chrf": cf_list,
+            },
+        }
+        if explain_mode:
+            metrics["explanations"] = explanation_count
+            metrics["explanation_rate"] = explanation_rate
+            metrics["per_example_scores"]["explanations"] = explanations
+            metrics["per_example_scores"]["extracted_answers"] = extracted_answers
+            metrics["per_example_scores"]["has_explanation"] = has_explanation_flags
+        else:
+            metrics["explanation_rate"] = 0.0
+        return metrics
+
 
 # ---------- WMT24++ ----------
 
