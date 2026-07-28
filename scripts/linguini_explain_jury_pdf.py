@@ -118,7 +118,13 @@ def load_outputs(path: Path) -> List[Dict[str, Any]]:
 def infer_task_name(raw_path: Path) -> str:
     """Infer task folder name from results/.../<task>/<model>/... paths."""
     parts = raw_path.resolve().parts
-    for name in ("linguini-explain", "linguini-nocontext", "linguini"):
+    for name in (
+        "iol-2026-explain",
+        "iol-2026",
+        "linguini-explain",
+        "linguini-nocontext",
+        "linguini",
+    ):
         if name in parts:
             return name
     # Fallback: parent of model dir → .../<task>/<model>/default/raw_outputs.json
@@ -126,6 +132,42 @@ def infer_task_name(raw_path: Path) -> str:
         return raw_path.parent.parent.parent.name
     except IndexError:
         return "linguini-explain"
+
+
+def sort_key_id(item: Dict[str, Any]) -> Tuple:
+    """Sort by problem id (numeric when possible)."""
+    pid = str(item.get("id", ""))
+    digits = re.sub(r"\D", "", pid)
+    if digits:
+        return (0, int(digits), pid)
+    return (1, pid)
+
+
+def parse_problem_subproblem(pid: str) -> Optional[Tuple[int, int]]:
+    """Decode IOL-style ids like 12026050200 → (problem=5, subproblem=2).
+
+    Layout (11 digits): ``1`` + year(4) + problem(2) + subproblem(2) + ``00``.
+    Falls back to the last 6 digits as PP SS xx when length differs.
+    """
+    digits = re.sub(r"\D", "", str(pid or ""))
+    if len(digits) < 6:
+        return None
+    try:
+        problem = int(digits[-6:-4])
+        subproblem = int(digits[-4:-2])
+    except ValueError:
+        return None
+    if problem <= 0 or subproblem <= 0:
+        return None
+    return problem, subproblem
+
+
+def problem_heading(pid: str, fallback_index: int) -> str:
+    parsed = parse_problem_subproblem(pid)
+    if parsed:
+        problem, subproblem = parsed
+        return f"# Problem {problem}, subproblem {subproblem}"
+    return f"# Problem {fallback_index}"
 
 
 def extract_context_question(item: Dict[str, Any]) -> Tuple[str, str]:
@@ -185,6 +227,8 @@ def build_markdown(
     lines.append(f"# {title}")
     lines.append("")
 
+    items = sorted(items, key=sort_key_id)
+
     for i, item in enumerate(items, start=1):
         pid = str(item.get("id", f"item-{i}"))
         context, question = extract_context_question(item)
@@ -193,7 +237,10 @@ def build_markdown(
         gold = (item.get("target_text") or "").strip()
         scores = item.get("scores") or {}
 
-        lines.append(f"# Problem {i}")
+        # One problem per page (title stays on its own first page).
+        lines.append('<div class="problem-break"></div>')
+        lines.append("")
+        lines.append(problem_heading(pid, i))
         lines.append("")
         lines.append(f"**Problem ID:** `{pid}`")
         lines.append("")
@@ -242,18 +289,6 @@ def build_markdown(
             )
             lines.append("")
 
-        lines.append("## Jury notes")
-        lines.append("")
-        lines.append("____________________________________________________________________")
-        lines.append("")
-        lines.append("____________________________________________________________________")
-        lines.append("")
-        lines.append("____________________________________________________________________")
-        lines.append("")
-        if i < len(items):
-            lines.append('<div style="page-break-after: always;"></div>')
-            lines.append("")
-
     return "\n".join(lines)
 
 
@@ -271,8 +306,12 @@ body {
   max-width: 900px;
   margin: 0 auto;
 }
-h1 { font-size: 1.45rem; margin-top: 1.4em; page-break-before: always; }
-h1:first-of-type { page-break-before: avoid; }
+h1 { font-size: 1.45rem; margin-top: 1.4em; }
+h1:first-of-type { margin-top: 0; }
+.problem-break {
+  break-before: page;
+  page-break-before: always;
+}
 h2 { font-size: 1.1rem; margin-top: 1.1em; border-bottom: 1px solid #ccc; padding-bottom: 0.15em; }
 pre, code {
   font-family: "Arial Unicode MS", "Arial Unicode", Menlo, Consolas, monospace;
@@ -299,7 +338,6 @@ th, td {
 }
 th { background: #f0f0f0; }
 hr { border: none; border-top: 1px solid #ccc; margin: 1.5em 0; }
-.jury-box td:last-child { min-height: 1.6em; }
 """
 
 
