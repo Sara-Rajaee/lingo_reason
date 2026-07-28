@@ -179,6 +179,16 @@ models:
       reasoning: True
       reasoning_effort: "high"
 
+  - name: "gemini-3.6-flash"
+    provider: "gemini"
+    model_id: "gemini-3.6-flash"
+    default_params:
+      temperature: 0
+      max_tokens: 65536
+      top_p: 1
+      reasoning_effort: "high"
+      reasoning: True
+
   - name: "gpt-4o"
     provider: "openai"
     model_id: "gpt-4o"
