@@ -91,7 +91,7 @@ class GptOssProvider(BaseProvider):
                 max_tokens=params.get("max_tokens", 4096),
                 top_p=params.get("top_p", 1),
                 num_retries=self.max_retries,
-                timeout=params.get("request_timeout", 3600),
+                timeout=params.get("request_timeout", self.timeout),
             )
             # vLLM-only sampling params (top_k, min_p) are not first-class OpenAI
             # fields; pass them through extra_body when set on the model.

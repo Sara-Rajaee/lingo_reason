@@ -1,6 +1,6 @@
 together_ai:
   api_key: ${TOGETHER_API_KEY}
-  timeout: 600
+  timeout: 20000
   max_retries: 10
 
 gemini:
@@ -13,6 +13,19 @@ openai:
   timeout: 600
   max_retries: 3
 
+anthropic:
+  api_key: ${ANTHROPIC_API_KEY}
+  timeout: 2000
+  max_retries: 10
+
+bedrock:
+  # Prefer env vars AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION.
+  aws_access_key_id: ${AWS_ACCESS_KEY_ID:-}
+  aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY:-}
+  aws_region_name: ${AWS_REGION:-us-east-1}
+  timeout: 2000
+  max_retries: 10
+
 cohere:
   api_key: ${COHERE_API_KEY}
   timeout: 600
@@ -23,3 +36,8 @@ gpt_oss:
   api_key: ${GPT_OSS_API_KEY:-no-key}
   timeout: 600
   max_retries: 3
+
+heuristic:
+  # Non-LLM baselines (copy-context, recombine-char-ngrams, lexicon-nn). No API key required.
+  timeout: 60
+  max_retries: 1

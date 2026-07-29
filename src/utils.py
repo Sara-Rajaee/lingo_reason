@@ -24,6 +24,52 @@ def load_config(config_path):
     
     return yaml.safe_load(content)
 
+
+_RESULT_MARKERS = (
+    "metrics.json",
+    "raw_outputs.json",
+    "sampled_outputs.json",
+    "metadata.json",
+    "gold_outputs.json",
+)
+
+
+def _path_has_results(path: str) -> bool:
+    """True if ``path`` already contains saved eval artifacts."""
+    return any(os.path.exists(os.path.join(path, name)) for name in _RESULT_MARKERS)
+
+
+def allocate_unique_model_run(
+    output_dir: str,
+    task_name: str,
+    model_dir: str,
+    subset: str,
+    *,
+    model_first: bool = False,
+) -> tuple:
+    """Pick a non-colliding result path for a model×task×subset run.
+
+    Returns ``(result_path, run_index)`` where ``run_index`` is 1 for the first
+    run and 2, 3, ... for repeats (directory suffix ``_2``, ``_3``, ...).
+
+    Layout when ``model_first`` is False (default eval results)::
+        ``<output>/<task>/<model_dir>[_N]/subset>``
+
+    Layout when ``model_first`` is True (distillation)::
+        ``<output>/<model_dir>[_N]/task>/<subset>``
+    """
+    n = 1
+    while True:
+        cand_model = model_dir if n == 1 else f"{model_dir}_{n}"
+        if model_first:
+            result_path = os.path.join(output_dir, cand_model, task_name, subset)
+        else:
+            result_path = os.path.join(output_dir, task_name, cand_model, subset)
+        if not _path_has_results(result_path):
+            return result_path, n
+        n += 1
+
+
 def save_results(results, output_dir, model_name, task_name, subset, split, reasoning_mode=None):
     """Save evaluation results"""
     # Create directory structure based on reasoning mode
@@ -41,7 +87,9 @@ def save_results(results, output_dir, model_name, task_name, subset, split, reas
     if task_name == 'polymath':
         task_name = task_name + '_' + split
     
-    result_path = os.path.join(output_dir, task_name, model_dir, subset)
+    result_path, run_index = allocate_unique_model_run(
+        output_dir, task_name, model_dir, subset
+    )
     os.makedirs(result_path, exist_ok=True)
     
     # Save metadata
@@ -53,7 +101,9 @@ def save_results(results, output_dir, model_name, task_name, subset, split, reas
         'reasoning_enabled': reasoning_enabled,
         'reasoning_effort': reasoning_effort,
         'timestamp': datetime.now().isoformat(),
-        'generation_params': results.get('generation_params', {})
+        'generation_params': results.get('generation_params', {}),
+        'result_path': result_path,
+        'run_index': run_index,
     }
     with open(os.path.join(result_path, 'metadata.json'), 'w', encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)
@@ -67,6 +117,7 @@ def save_results(results, output_dir, model_name, task_name, subset, split, reas
         json.dump(results['raw_outputs'], f, ensure_ascii=False, indent=2)
     
     print(f"Results saved to {result_path}")
+    return result_path
 
 def get_output_dir():
     """Create timestamped output directory"""
@@ -77,7 +128,9 @@ def save_distillation_results(results, output_dir, model_name, task_name, subset
     if task_name == 'polymath':
         task_name = task_name + '_' + split
 
-    result_path = os.path.join(output_dir, model_name, task_name, subset)
+    result_path, run_index = allocate_unique_model_run(
+        output_dir, task_name, model_name, subset, model_first=True
+    )
     os.makedirs(result_path, exist_ok=True)
 
     metadata = {
@@ -91,7 +144,9 @@ def save_distillation_results(results, output_dir, model_name, task_name, subset
         'distillation_samples': results.get('distillation_samples', 1),
         'generation_params': results.get('generation_params', {}),
         'num_sampled_outputs': len(results.get('raw_outputs', [])),
-        'num_gold_outputs': len(results.get('gold_outputs', []))
+        'num_gold_outputs': len(results.get('gold_outputs', [])),
+        'result_path': result_path,
+        'run_index': run_index,
     }
 
     with open(os.path.join(result_path, 'metadata.json'), 'w', encoding="utf-8") as f:
@@ -110,6 +165,7 @@ def save_distillation_results(results, output_dir, model_name, task_name, subset
         json.dump(results['all_gold_outputs'], f, ensure_ascii=False, indent=2)
 
     print(f"Distillation results saved to {result_path}")
+    return result_path
 
 
 def get_distillation_output_dir():

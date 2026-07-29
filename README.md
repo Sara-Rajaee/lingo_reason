@@ -79,6 +79,10 @@ python run.py --model gemini-2.5-flash --task polymath
 # GPT-OSS models (requires a running vLLM proxy)
 python run.py --model gpt-oss-20b --task mmmlu
 python run.py --model gpt-oss-120b --task polymath
+
+# IOL 2026 contest problems (private HF datasets; needs HF_TOKEN with access)
+python run.py --model gemini-2.5-flash --task iol-2026
+python run.py --model gemini-2.5-flash --task iol-2026-explain
 ```
 
 To see all available models and tasks:

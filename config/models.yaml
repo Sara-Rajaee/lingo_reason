@@ -8,6 +8,93 @@ models:
       top_p: 1
       reasoning: True
 
+  - name: "deepseek-v4-pro-max"
+    provider: "together_ai"
+    model_id: "deepseek-ai/DeepSeek-V4-Pro"
+    default_params:
+      temperature: 1.0
+      max_tokens: 384000
+      top_p: 1
+      reasoning: True
+      reasoning_effort: "max"
+
+  - name: "deepseek-v4-pro-high"
+    provider: "together_ai"
+    model_id: "deepseek-ai/DeepSeek-V4-Pro"
+    default_params:
+      temperature: 1.0
+      max_tokens: 64000
+      top_p: 1
+      reasoning: True
+      reasoning_effort: "high"
+
+  - name: "qwen-3-7-max"
+    provider: "together_ai"
+    model_id: "Qwen/Qwen3.7-Max"
+    default_params:
+      temperature: 0.6
+      max_tokens: 65536
+      top_p: 0.95
+      reasoning: True
+      stream: True
+
+  - name: "glm-5-2-high"
+    provider: "together_ai"
+    model_id: "zai-org/GLM-5.2"
+    default_params:
+      temperature: 1.0
+      max_tokens: 64000
+      top_p: 0.95
+      reasoning: True
+      reasoning_effort: "high" 
+
+  - name: "kimi-k2-6"
+    provider: "together_ai"
+    model_id: "moonshotai/Kimi-K2.6"
+    default_params:
+      temperature: 1.0
+      max_tokens: 64000
+      top_p: 0.95
+      reasoning: True
+
+  - name: "inkling-high"
+    provider: "together_ai"
+    model_id: "thinkingmachines/Inkling"
+    default_params:
+      temperature: 1.0
+      max_tokens: 64000
+      top_p: 0.95
+      reasoning: True
+      reasoning_effort: "high"
+
+  - name: "minimax-m3"
+    provider: "together_ai"
+    model_id: "MiniMaxAI/MiniMax-M3"
+    default_params:
+      temperature: 1.0
+      max_tokens: 64000
+      top_p: 0.95
+      reasoning: True
+
+  - name: "minimax-m3-token-max"
+    provider: "together_ai"
+    model_id: "MiniMaxAI/MiniMax-M3"
+    default_params:
+      temperature: 1.0
+      max_tokens: 131072
+      top_p: 0.95
+      reasoning: True
+
+  - name: "nemotron-3-ultra-medium"
+    provider: "together_ai"
+    model_id: "nvidia/nemotron-3-ultra-550b-a55b"
+    default_params:
+      temperature: 0.3
+      max_tokens: 64000
+      top_p: 0.95
+      reasoning: True
+      reasoning_effort: "medium"
+
   - name: "deepseek-r1"
     provider: "together_ai"
     model_id: "deepseek-ai/DeepSeek-R1"
@@ -37,6 +124,71 @@ models:
       thinking_budget: 30744
       reasoning: True
 
+  - name: "gpt5.6-sol-high"
+    provider: "openai"
+    model_id: "gpt-5.6-sol"
+    default_params:
+      temperature: 1.0
+      max_tokens: 64000
+      top_p: 1
+      reasoning: True
+      reasoning_effort: "high"
+
+  - name: "gpt5.6-sol-token-max"
+    provider: "openai"
+    model_id: "gpt-5.6-sol"
+    default_params:
+      temperature: 1.0
+      max_tokens: 128000
+      top_p: 1
+      reasoning: True
+      reasoning_effort: "high"
+
+  - name: "claude-opus-4-8-bedrock-high"
+    provider: "bedrock"
+    model_id: "global.anthropic.claude-opus-4-8"
+    default_params:
+      max_tokens: 64000
+      reasoning: True
+      reasoning_effort: "high"
+      temperature: 1.0
+
+  - name: "claude-opus-4-8-bedrock-max"
+    provider: "bedrock"
+    model_id: "global.anthropic.claude-opus-4-8"
+    default_params:
+      max_tokens: 128000
+      reasoning: True
+      reasoning_effort: "max"
+      temperature: 1.0
+
+  - name: "claude-opus-5-bedrock-high"
+    provider: "bedrock"
+    # Global inference profile; Bedrock model ID is anthropic.claude-opus-5.
+    model_id: "global.anthropic.claude-opus-5"
+    default_params:
+      max_tokens: 64000
+      reasoning: True
+      reasoning_effort: "high"
+
+  - name: "claude-opus-5-high"
+    provider: "anthropic"
+    model_id: "claude-opus-5"
+    default_params:
+      max_tokens: 128000
+      reasoning: True
+      reasoning_effort: "high"
+
+  - name: "gemini-3.6-flash"
+    provider: "gemini"
+    model_id: "gemini-3.6-flash"
+    default_params:
+      temperature: 0
+      max_tokens: 65536
+      top_p: 1
+      reasoning_effort: "high"
+      reasoning: True
+
   - name: "gpt-4o"
     provider: "openai"
     model_id: "gpt-4o"
@@ -52,6 +204,16 @@ models:
       temperature: 0
       max_tokens: 10216
       thinking_budget: 8192
+      reasoning: True
+
+  - name: "command-a-plus"
+    provider: "cohere"
+    model_id: "command-a-plus-05-2026"
+    default_params:
+      temperature: 0.6
+      top_p: 0.95
+      max_tokens: 64000
+      thinking_budget: 63500
       reasoning: True
 
   - name: "gpt-oss-20b"
@@ -241,3 +403,29 @@ models:
       max_tokens: 64000
       reasoning: True
       request_timeout: 10800
+
+  # --- Heuristic Linguini baselines (no LLM) ---
+  - name: "copy-context"
+    provider: "heuristic"
+    model_id: "copy-context"
+    default_params:
+      temperature: 0
+      seed: 0
+      reasoning: False
+
+  - name: "recombine-char-ngrams"
+    provider: "heuristic"
+    model_id: "recombine-char-ngrams"
+    default_params:
+      temperature: 0
+      seed: 0
+      ngram_size: 3  # character n-gram size
+      reasoning: False
+
+  - name: "lexicon-nn"
+    provider: "heuristic"
+    model_id: "lexicon-nn"
+    default_params:
+      temperature: 0
+      seed: 0
+      reasoning: False
