@@ -2,24 +2,24 @@
  {
   "id": "12026010100",
   "answer": [
-   "mellqulelliuxta",
-   "qayaapixkaani_NS",
-   "talliixaq'_NS",
-   "kexsailkutaq'",
-   "cupgallaxtuq'"
+   "melqulelliruta_NS",
+   "qayaapigkaani_NS",
+   "taliiraq_NS",
+   "kegsailkutaq_NS",
+   "cupgalagtuq_NS"
   ],
-  "source_model": "qwen3.6-27b"
+  "source_model": "gemma4-31b-it"
  },
  {
   "id": "12026010200",
   "answer": [
-   "[a.ˈaːʁ.təχ.tuqʰ]",
-   "[a.ˈkə.ka.ˈtə.ki]",
-   "[nə.ˈɣaːv.ɣun]",
-   "[ˈa.tə.ˈsuː.akʰ]",
-   "[ˈnəχ.ci.quqʰ]",
-   "[a.ˈɮiː.kən.ˈʁiː.tə.ˈqaː]",
-   "[nəq.ˈɬiːn.xaχ.ʁaχ.ˈməkʰ]"
+   "[ˈaːʁ.taχ.tuqʰ]",
+   "[a.ˈkə.ka.ˈta.ki]",
+   "[nə.ˈɣaf.ɣun]",
+   "[a.ˈta.su.akʰ]",
+   "[ˈnəʁ.ci.quqʰ]",
+   "[a.ˈɮiː.kən.ˈʁiː.ta.qa] [a.ˈɮi.ˈkən.ʁi.ˈta.qa]",
+   "[nəq.ˈɬiːn.ʁaχ.məkʰ] [nəq.ˈɬin.ˈʁaχ.məkʰ]"
   ],
   "source_model": "gemma4-31b-it"
  },
@@ -30,146 +30,146 @@
    "C",
    "F",
    "G",
-   "D",
-   "B",
    "E",
+   "B",
+   "T",
    "H",
    "N",
-   "I",
-   "P",
-   "K",
    "M",
+   "K",
+   "P",
    "L",
-   "O",
-   "J",
-   "T",
+   "W",
+   "I",
+   "D",
    "Q",
-   "U",
-   "AA",
-   "Z",
-   "V",
+   "S",
+   "X",
    "R",
    "Y",
-   "S",
-   "W",
-   "X"
+   "V",
+   "U",
+   "J",
+   "O",
+   "AA",
+   "T"
   ],
   "source_model": "qwen3.6-27b"
  },
  {
   "id": "12026020200",
   "answer": [
-   "banana plant",
+   "banana plant, stone",
    "white",
-   "iron",
-   "thin stone",
-   "small person",
-   "ship"
+   "eating",
+   "lightning",
+   "Yele language",
+   "green"
   ],
   "source_model": "gemma4-31b-it"
  },
  {
   "id": "12026020300",
   "answer": [
-   "yi mbwii",
-   "k:ii",
-   "mty:aa",
-   "mtyemtye",
-   "mtyemtye",
-   "kpêdê k:ii",
-   "nkéli"
+   "BB. k:ii",
+   "CC. mbwaa",
+   "DD. pi",
+   "EE. tpile",
+   "FF. tpile",
+   "GG. mty:aa wee",
+   "HH. Yélî"
   ],
   "source_model": "deepseek-r1-32b"
  },
  {
   "id": "12026020400",
   "answer": [
-   "The colors in Yélî Dnye are expressed as follows:"
+   "Colours are expressed as separate words: 'tp:oo' for white, 'ntóó' or 'kpêdê' for black, 'mtyemtye' for red, 'ngwolo' for green, and 'kémi' for yellow. Intensification, such as 'completely white', is expressed through reduplication (e.g., 'kpaapîkpaapî')."
   ],
   "source_model": "gemma4-31b-it"
  },
  {
   "id": "12026020500",
   "answer": [
-   "LL",
-   "NN",
-   "MM",
-   "II",
    "KK",
-   "JJ"
+   "JJ",
+   "NN",
+   "LL",
+   "MM",
+   "II"
   ],
-  "source_model": "gemma4-31b-it"
+  "source_model": "deepseek-r1-32b"
  },
  {
   "id": "12026030100",
   "answer": [
-   "You will visit the animal of these teachers",
-   "They saw Leo's fish",
-   "I will sell the animal's canoe",
-   "I will care for these children of this man"
+   "You will visit the animal of these teachers.",
+   "They saw Leo's fish.",
+   "I will sell the animal of this canoe.",
+   "I will care for these children of this man."
   ],
   "source_model": "gemma4-31b-it"
  },
  {
   "id": "12026030200",
   "answer": [
-   "kia=masɨɨtɨɨrɨɨkura iiminaka iina iipɨ",
-   "kia=isikɨrɨɨ iiyɨɨ paajuuyaana",
-   "ki=masɨɨtɨɨrɨɨ iita iitimɨra",
-   "nu=iimi simiimɨya masɨɨtɨɨrɨɨ Ema",
-   "ki=iiminaka irikatajuurɨɨ ikwaniwɨya"
+   "kia=masɨɨkura iiminaka iipɨ mɨra",
+   "kia=iiyɨɨ isikɨrɨɨ paajuuyaana",
+   "ki=iita masɨɨrɨɨ iipɨ iitimɨra / ki=iipɨ masɨɨrɨɨ iita iitimɨra",
+   "nu=Ema masɨɨtɨɨrɨɨ iimi simiimɨya / nu=iimi masɨɨtɨɨrɨɨ simiimɨya Ema",
+   "ki=iina irikatajuurɨɨ iimina iipɨ ikwaniwɨya / ki=iipɨ irikatajuurɨɨ iina iimina ikwaniwɨya"
   ],
-  "source_model": "deepseek-r1-32b"
+  "source_model": "gemma4-31b-it"
  },
  {
   "id": "12026040100",
   "answer": [
-   "A: 3",
-   "B: 4",
-   "C: 7",
-   "D: 9",
-   "E: 8",
-   "F: 6",
-   "G: 1",
-   "H: 2",
-   "I: 5",
-   "J: 10"
+   "1=A",
+   "2=C",
+   "3=D",
+   "4=H",
+   "5=I",
+   "6=F",
+   "7=J",
+   "8=G",
+   "9=B",
+   "10=E"
   ],
-  "source_model": "qwen3.6-27b"
+  "source_model": "glm-4.7-flash"
  },
  {
   "id": "12026040200",
   "answer": [
    "5",
    "6",
-   "7",
    "8",
    "9",
-   "10"
+   "10",
+   "7"
   ],
-  "source_model": "gemma4-31b-it"
+  "source_model": "qwen3.6-27b"
  },
  {
   "id": "12026040300",
   "answer": [
+   "oykey mẽpit",
    "okoypet",
-   "omẽpit",
    "okip",
-   "okoypet",
-   "okwa",
-   "otaup"
+   "okip",
+   "oyke",
+   "otak"
   ],
-  "source_model": "gemma4-31b-it"
+  "source_model": "qwen3.6-27b"
  },
  {
   "id": "12026050100",
   "answer": [
    "kayé zwfafath",
-   "nümä thenaswa",
-   "zena wofathwrth",
-   "nümä nwafath"
+   "nümä theäsfé",
+   "zena wofathwath",
+   "nümä nznwath"
   ],
-  "source_model": "gemma4-31b-it"
+  "source_model": "qwen3.6-27b"
  },
  {
   "id": "12026050200",
