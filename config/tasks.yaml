@@ -10,6 +10,18 @@ tasks:
       temperature: 0.0
       top_p: 1.0
 
+  # IOL-2026 problems (linguini format, local jsonl) — scored like linguini
+  iol2026:
+    benchmark_type: "linguini"
+    dataset_name: "iol2026linguini.jsonl"
+    split: "test"
+    subsets: ["default"]
+    defaults:
+      batch_size: 14
+      max_new_tokens: 8192
+      temperature: 0.0
+      top_p: 1.0
+
   linguini-explain:
     benchmark_type: "linguini"
     dataset_name: "facebook/linguini"

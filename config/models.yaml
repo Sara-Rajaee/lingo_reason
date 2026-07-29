@@ -368,7 +368,7 @@ models:
     default_params:
       temperature: 1.0
       top_p: 0.95
-      max_tokens: 64000
+      max_tokens: 128000
       reasoning: True
       chat_template_kwargs:
         enable_thinking: true
@@ -380,7 +380,7 @@ models:
       temperature: 0.6
       top_p: 0.95
       top_k: 20
-      max_tokens: 64000
+      max_tokens: 128000
       reasoning: True
 
   - name: "deepseek-r1-32b"
@@ -389,7 +389,7 @@ models:
     default_params:
       temperature: 0.6
       top_p: 0.95
-      max_tokens: 32768
+      max_tokens: 65536
       reasoning: True
 
   - name: "glm-4.7-flash"
@@ -400,7 +400,7 @@ models:
       top_p: 0.95
       top_k: 40
       repetition_penalty: 1.05
-      max_tokens: 64000
+      max_tokens: 128000
       reasoning: True
       request_timeout: 10800
 

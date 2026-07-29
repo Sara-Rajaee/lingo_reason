@@ -85,6 +85,24 @@ def item_scores(pred: Any, gold_alts: Sequence[Any]) -> tuple:
     return best_em, best_cf
 
 
+def _unwrap_code_fence(s: str) -> str:
+    """Pull content out of a markdown code fence (```json ... ``` etc.) so a JSON
+    list wrapped in a fence still parses. Prefers a fenced block that is itself a
+    JSON list; else the longest fenced block; else returns the string unchanged.
+    Models like gemma often wrap answers in ```json fences; without this the
+    fence syntax gets line-split into bogus items."""
+    blocks = re.findall(r"```(?:[A-Za-z0-9_+-]+)?\s*\n?(.*?)```", s, re.DOTALL)
+    if not blocks:
+        return s
+    for b in blocks:
+        try:
+            if isinstance(json.loads(b.strip()), list):
+                return b.strip()
+        except Exception:
+            pass
+    return max(blocks, key=len).strip()
+
+
 def parse_pred_items(pred_str: Any, n_items: int) -> List[str]:
     """Split a prediction into n_items answers (JSON list or newline-separated)."""
 
@@ -96,7 +114,7 @@ def parse_pred_items(pred_str: Any, n_items: int) -> List[str]:
 
     if not pred_str or not str(pred_str).strip():
         return [""] * n_items
-    s = str(pred_str).strip()
+    s = _unwrap_code_fence(str(pred_str).strip())
 
     try:
         parsed = json.loads(s)

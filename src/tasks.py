@@ -455,9 +455,12 @@ class LinguiniBenchmark(BaseBenchmark):
         limit = self.defaults.get('limit_per_subset')
 
         print(f"Loading {name} ({self.subset})...")
-        # Linguini has a single config ('default') and a single split ('test').
-        # self.subset is expected to be 'default' when running this benchmark.
-        ds = load_dataset(name, split=split)
+        # Support either the HuggingFace facebook/linguini dataset or a local
+        # .jsonl/.json file in linguini format (e.g. IOL-2026 problems).
+        if os.path.exists(name):
+            ds = load_dataset('json', data_files=name, split='train')
+        else:
+            ds = load_dataset(name, split=split)
 
         if limit:
             ds = ds.select(range(min(limit, len(ds))))
@@ -473,16 +476,19 @@ class LinguiniBenchmark(BaseBenchmark):
             answer_raw = problem.get('answer', '')
             eval_type = problem.get('eval_type', 'single')
 
-            # Parse answer: stored as string repr of a list, e.g. "['a', 'b']"
-            try:
-                import ast
-                answer_list = ast.literal_eval(answer_raw)
-                if isinstance(answer_list, list):
-                    answer = '\n'.join(str(a).strip() for a in answer_list)
-                else:
-                    answer = str(answer_list).strip()
-            except (ValueError, SyntaxError):
-                answer = str(answer_raw).strip()
+            # Parse answer: a native list (local jsonl) or a string repr "['a','b']"
+            if isinstance(answer_raw, list):
+                answer = '\n'.join(str(a).strip() for a in answer_raw)
+            else:
+                try:
+                    import ast
+                    answer_list = ast.literal_eval(answer_raw)
+                    if isinstance(answer_list, list):
+                        answer = '\n'.join(str(a).strip() for a in answer_list)
+                    else:
+                        answer = str(answer_list).strip()
+                except (ValueError, SyntaxError):
+                    answer = str(answer_raw).strip()
 
             examples.append(LinguiniExample(
                 id=problem_id,

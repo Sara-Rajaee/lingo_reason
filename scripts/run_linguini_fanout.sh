@@ -30,8 +30,8 @@ wait_and_eval() {
       echo "[$name] HEALTHY at http://$node:$port/v1/ — launching eval"
       GPT_OSS_API_BASE="http://$node:$port/v1/" HF_HUB_OFFLINE=1 \
         http_proxy="" HTTP_PROXY="" https_proxy="" HTTPS_PROXY="" \
-        nohup uv run python run.py --model "$name" --task linguini ${CONCURRENCY:+--concurrency $CONCURRENCY} \
-        > "logs/eval_${name}_linguini.out" 2>&1 &
+        nohup uv run python run.py --model "$name" --task "${TASK:-linguini}" ${CONCURRENCY:+--concurrency $CONCURRENCY} \
+        > "logs/eval_${name}_${TASK:-linguini}.out" 2>&1 &
       echo "[$name] eval launched pid $!"
       return 0
     fi
