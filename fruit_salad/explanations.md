@@ -1,6 +1,6 @@
 # fruit_salad — winners' explanations (IOL-2026)
 
-One entry per problem, from the model the best-of-n submission selected as the winner. Where the model produced a clean Answer/Explanation block we show it; otherwise we keep the raw reasoning the winning model produced (no fallback to other models).
+One entry per problem, from the model the best-of-n submission selected as the winner, kept verbatim (no trimming, no fallback).
 
 
 ## Problem 12026010100  —  gemma4-31b-it
@@ -10,6 +10,8 @@ qajapikkaani_NS
 taliqaq_NS
 keksailkutaq_NS
 cupgalaxtuq_NS
+
+
 
 
 The mapping from phonetic transcriptions to Central Alaskan Yup'ik orthography is as follows:
@@ -38,6 +40,8 @@ Target Word Analysis:
 [ˈnəʁ.ci.quqʰ]
 [a.ˈɬi.kən.ˈʁi.ta.qa]
 [ˈneq.ɬin.ˈχaχ.məkʰ]
+
+
 
 
 The phonetic transcription of Central Alaskan Yup'ik depends on the syllable structure, the following vowel, and the presence of the glottal stop marker ('). 
@@ -104,6 +108,8 @@ Y
 X
 
 
+
+
 The matching relies on identifying core lexical roots, morphological patterns (especially reduplication), and syntactic ordering in Yélî Dnye.
 
 **1. Color Roots & Reduplication**
@@ -152,6 +158,8 @@ English
 water
 
 
+
+
 The analysis of the Yélî Dnye phrases reveals the following vocabulary and rules:
 
 ### Vocabulary
@@ -190,6 +198,8 @@ kpêdê mbwaa
 Yélî Dnye
 
 
+
+
 - **BB. (his) son**: Derived from "yi" (possessive pronoun) and "kîgha" (son), as seen in phrase 23.
 - **CC. green**: From "ngwolo" in "ngwolo nt:uu" meaning "green snake."
 - **DD. fat, grease**: "lîmî" from "lîmî k:ii" meaning "greasy."
@@ -202,6 +212,8 @@ Yélî Dnye
 ## Problem 12026020400  —  gemma4-31b-it
 
 **Answer:** Colours are expressed by using specific words for the colours: tp:oo for white, kpêdê for black, yââ for red, and either kémi or ngwolo for green and yellow. Additionally, the intensification of a colour (e.g., "completely white") or the naming of an object based on its colour property (e.g., "nut that turns black") is expressed through the reduplication of the colour word.
+
+
 
 
 The analysis of the provided Yélî Dnye phrases reveals that colours are designated by specific roots:
@@ -226,6 +238,8 @@ Reduplication of these roots changes the meaning from a simple colour adjective 
 **Answer:** "JJ", "II", "II", "II", "Y", "LL"
 
 
+
+
 The analysis involves matching Yélî Dnye phrases with English descriptions by leveraging known translations and linguistic patterns. Reduplication indicates intensity or plurality, and "nkéli" relates to trees or insects. "kpaapî tp:oo" meaning "white thing" suggests "sky" (JJ). "mbóó" likely refers to "millipede" (II). "pê pê" suggests "plane" (LL).
 
 
@@ -235,6 +249,8 @@ The analysis involves matching Yélî Dnye phrases with English descriptions by 
 They saw Leo's fish.
 I will sell the animal of this canoe.
 I will care for these children of this man.
+
+
 
 
 The analysis of Iquito sentences reveals several linguistic rules:
@@ -277,6 +293,8 @@ kia=iiyɨɨ isikɨrɨɨ paajuuyaana
 ki=iita masɨɨrɨɨ iipɨ iitimɨra
 nu=iimi masɨɨtɨɨrɨɨ Ima simiimɨya
 ki=iipɨ irikatajuurɨɨ ikwaniwɨya iina iimina
+
+
 
 
 1. Morphological Analysis**
@@ -322,6 +340,8 @@ The language allows the direct object, indirect object, or a modifier of the obj
 **Answer:** ```json
 ["1=A","2=C","3=B","4=D"]
 ```
+
+
 
 
 #### Step 1: Understanding the Problem Structure
@@ -409,6 +429,8 @@ Matching finalized accordingly yielding appropriate alphanumeric designations sa
 10
 
 
+
+
 The problem explicitly states that "siblings appear from oldest to youngest, from left to right" in the family tree. This structural rule applies to all generations. The second-generation siblings are ordered 1 (oldest), 2, 3, 4 (youngest). Consequently, their children in the third generation follow the same chronological sequence: children of 1 (5, 6, 7) are born first, followed by children of 2 (8, 9), then children of 3 (Boni, Rosalina), and finally the child of 4 (10). Removing Boni and Rosalina as requested, the birth order of members 5–10 from oldest to youngest is strictly 5, 6, 7, 8, 9, 10. The provided linguistic data confirms kinship terms and relationships but does not alter the explicit generational ordering given in the tree diagram.
 
 
@@ -420,6 +442,8 @@ okip
 okip
 okupi
 otak
+
+
 
 
 Based on the family tree and the kinship terms used, we can deduce the relationships and the mapping of letters A–J to the numbered individuals.
@@ -13087,12 +13111,8 @@ Let's look at specific verbs across different tenses/subjects.
          17 `thenäfé`.
 
 
-_(no clean explanation extracted — raw reasoning kept below)_
+ _(raw reasoning — no clean block parsed)_
 
-
-<details><summary>raw reasoning</summary>
-
-```
 The user wants to translate four English sentences into Komnzo based on a provided dataset of 15 sentences.
 
 **Dataset Analysis:**
@@ -25721,8 +25741,6 @@ Let's look at specific verbs across different tenses/subjects.
          Let's check 17 `thenäfé`.
          1 `thewafé`.
          17 `thenäfé`.
-```
-</details>
 
 
 ## Problem 12026050200  —  qwen3.6-27b
@@ -25731,6 +25749,8 @@ Let's look at specific verbs across different tenses/subjects.
 I held them yesterday.
 I was seeing them a week ago.
 They returned us yesterday.
+
+
 
 
 The Komnzo verb is a single complex word encoding object, verb root, tense/aspect, and subject. The sentence structure is strictly `[Time Word] [Verb Complex]`.
