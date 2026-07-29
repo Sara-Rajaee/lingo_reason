@@ -1,0 +1,21 @@
+{
+  "task": "iol-2026",
+  "n_problems": 14,
+  "models": [
+    "gemma4-31b-it",
+    "qwen3.6-27b",
+    "deepseek-r1-32b",
+    "glm-4.7-flash"
+  ],
+  "oracle_score": {
+    "score": 0.2906,
+    "chrf": 0.4221,
+    "exact_match": 0.2001
+  },
+  "per_model_wins": {
+    "gemma4-31b-it": 8,
+    "qwen3.6-27b": 4,
+    "deepseek-r1-32b": 2,
+    "glm-4.7-flash": 0
+  }
+}

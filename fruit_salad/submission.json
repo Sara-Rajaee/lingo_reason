@@ -1,0 +1,184 @@
+[
+ {
+  "id": "12026010100",
+  "answer": [
+   "mellqulelliuxta",
+   "qayaapixkaani_NS",
+   "talliixaq'_NS",
+   "kexsailkutaq'",
+   "cupgallaxtuq'"
+  ],
+  "source_model": "qwen3.6-27b"
+ },
+ {
+  "id": "12026010200",
+  "answer": [
+   "[a.ˈaːʁ.təχ.tuqʰ]",
+   "[a.ˈkə.ka.ˈtə.ki]",
+   "[nə.ˈɣaːv.ɣun]",
+   "[ˈa.tə.ˈsuː.akʰ]",
+   "[ˈnəχ.ci.quqʰ]",
+   "[a.ˈɮiː.kən.ˈʁiː.tə.ˈqaː]",
+   "[nəq.ˈɬiːn.xaχ.ʁaχ.ˈməkʰ]"
+  ],
+  "source_model": "gemma4-31b-it"
+ },
+ {
+  "id": "12026020100",
+  "answer": [
+   "A",
+   "C",
+   "F",
+   "G",
+   "D",
+   "B",
+   "E",
+   "H",
+   "N",
+   "I",
+   "P",
+   "K",
+   "M",
+   "L",
+   "O",
+   "J",
+   "T",
+   "Q",
+   "U",
+   "AA",
+   "Z",
+   "V",
+   "R",
+   "Y",
+   "S",
+   "W",
+   "X"
+  ],
+  "source_model": "qwen3.6-27b"
+ },
+ {
+  "id": "12026020200",
+  "answer": [
+   "banana plant",
+   "white",
+   "iron",
+   "thin stone",
+   "small person",
+   "ship"
+  ],
+  "source_model": "gemma4-31b-it"
+ },
+ {
+  "id": "12026020300",
+  "answer": [
+   "yi mbwii",
+   "k:ii",
+   "mty:aa",
+   "mtyemtye",
+   "mtyemtye",
+   "kpêdê k:ii",
+   "nkéli"
+  ],
+  "source_model": "deepseek-r1-32b"
+ },
+ {
+  "id": "12026020400",
+  "answer": [
+   "The colors in Yélî Dnye are expressed as follows:"
+  ],
+  "source_model": "gemma4-31b-it"
+ },
+ {
+  "id": "12026020500",
+  "answer": [
+   "LL",
+   "NN",
+   "MM",
+   "II",
+   "KK",
+   "JJ"
+  ],
+  "source_model": "gemma4-31b-it"
+ },
+ {
+  "id": "12026030100",
+  "answer": [
+   "You will visit the animal of these teachers",
+   "They saw Leo's fish",
+   "I will sell the animal's canoe",
+   "I will care for these children of this man"
+  ],
+  "source_model": "gemma4-31b-it"
+ },
+ {
+  "id": "12026030200",
+  "answer": [
+   "kia=masɨɨtɨɨrɨɨkura iiminaka iina iipɨ",
+   "kia=isikɨrɨɨ iiyɨɨ paajuuyaana",
+   "ki=masɨɨtɨɨrɨɨ iita iitimɨra",
+   "nu=iimi simiimɨya masɨɨtɨɨrɨɨ Ema",
+   "ki=iiminaka irikatajuurɨɨ ikwaniwɨya"
+  ],
+  "source_model": "deepseek-r1-32b"
+ },
+ {
+  "id": "12026040100",
+  "answer": [
+   "A: 3",
+   "B: 4",
+   "C: 7",
+   "D: 9",
+   "E: 8",
+   "F: 6",
+   "G: 1",
+   "H: 2",
+   "I: 5",
+   "J: 10"
+  ],
+  "source_model": "qwen3.6-27b"
+ },
+ {
+  "id": "12026040200",
+  "answer": [
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10"
+  ],
+  "source_model": "gemma4-31b-it"
+ },
+ {
+  "id": "12026040300",
+  "answer": [
+   "okoypet",
+   "omẽpit",
+   "okip",
+   "okoypet",
+   "okwa",
+   "otaup"
+  ],
+  "source_model": "gemma4-31b-it"
+ },
+ {
+  "id": "12026050100",
+  "answer": [
+   "kayé zwfafath",
+   "nümä thenaswa",
+   "zena wofathwrth",
+   "nümä nwafath"
+  ],
+  "source_model": "gemma4-31b-it"
+ },
+ {
+  "id": "12026050200",
+  "answer": [
+   "You all were returning us a week ago.",
+   "I held them yesterday.",
+   "I was seeing them a week ago.",
+   "They returned us yesterday."
+  ],
+  "source_model": "qwen3.6-27b"
+ }
+]
