@@ -81,6 +81,15 @@ models:
       top_p: 1
       reasoning: True
 
+  - name: "qwen3-4b-thinking-overfit-lingoly-lora"
+    provider: "gpt_oss"
+    model_id: "/storage/home/eduardosanchez/workspace/lingo_reason/train_runs/qwen_qwen3-4b-thinking-2507_lora_distilled-100_dedup_20260612_010737/merged"
+    default_params:
+      temperature: 0
+      max_tokens: 32768
+      top_p: 1
+      reasoning: True
+
   - name: "qwen3-4b-instruct-base"
     provider: "gpt_oss"
     model_id: "Qwen/Qwen3-4B-Instruct-2507"
@@ -89,3 +98,146 @@ models:
       max_tokens: 32768
       top_p: 1
       reasoning: False
+
+  - name: "qwen3-4b-instruct-overfit-lingoly-lora"
+    provider: "gpt_oss"
+    model_id: "/storage/home/eduardosanchez/workspace/lingo_reason/train_runs/qwen_qwen3-4b-instruct-2507_lora_distilled-100_dedup_20260611_154821/merged"
+    default_params:
+      temperature: 0
+      max_tokens: 32768
+      top_p: 1
+      reasoning: True
+
+  - name: "qwen3-4b-thinking-grpo-lora"
+    provider: "gpt_oss"
+    model_id: "/storage/home/eduardosanchez/workspace/lingo_reason/train_runs/qwen_qwen3-4b-thinking-2507_grpo_lora_distilled-100_dedup_20260620_224755/merged"
+    default_params:
+      temperature: 0
+      max_tokens: 8192
+      top_p: 1
+      reasoning: True
+
+  - name: "qwen3-4b-instruct-grpo-lora"
+    provider: "gpt_oss"
+    model_id: "/storage/home/eduardosanchez/workspace/lingo_reason/train_runs/qwen_qwen3-4b-instruct-2507_grpo_lora_distilled-100_dedup_20260620_224757/merged"
+    default_params:
+      temperature: 0
+      max_tokens: 32768
+      top_p: 1
+      reasoning: False
+
+  - name: "qwen3-8b-base"
+    provider: "gpt_oss"
+    model_id: "Qwen/Qwen3-8B"
+    default_params:
+      temperature: 0
+      max_tokens: 32768
+      top_p: 1
+      reasoning: True
+
+  - name: "qwen3-8b-sft-lora"
+    provider: "gpt_oss"
+    model_id: "/storage/home/eduardosanchez/workspace/lingo_reason/train_runs/qwen_qwen3-8b_sft_lora_distilled-100_dedup_20260623_144341/merged"
+    default_params:
+      temperature: 0
+      max_tokens: 8192
+      top_p: 1
+      reasoning: True
+
+  - name: "qwen3-14b-base"
+    provider: "gpt_oss"
+    model_id: "Qwen/Qwen3-14B"
+    default_params:
+      temperature: 0
+      max_tokens: 32768
+      top_p: 1
+      reasoning: True
+
+  - name: "qwen3-14b-sft-lora"
+    provider: "gpt_oss"
+    model_id: "/storage/home/eduardosanchez/workspace/lingo_reason/train_runs/qwen_qwen3-14b_sft_lora_distilled-100_dedup_20260623_144342/merged"
+    default_params:
+      temperature: 0
+      max_tokens: 8192
+      top_p: 1
+      reasoning: True
+
+  - name: "qwen3-8b-grpo-lora"
+    provider: "gpt_oss"
+    model_id: "/storage/home/eduardosanchez/workspace/lingo_reason/train_runs/qwen_qwen3-8b_grpo_lora_distilled-100_dedup_20260623_235735/merged"
+    default_params:
+      temperature: 0
+      max_tokens: 8192
+      top_p: 1
+      reasoning: True
+
+  - name: "qwen3-14b-grpo-lora"
+    provider: "gpt_oss"
+    model_id: "/storage/home/eduardosanchez/workspace/lingo_reason/train_runs/qwen_qwen3-14b_grpo_lora_distilled-100_dedup_20260624_000042/merged"
+    default_params:
+      temperature: 0
+      max_tokens: 8192
+      top_p: 1
+      reasoning: True
+
+  - name: "qwen3-32b-base"
+    provider: "gpt_oss"
+    model_id: "Qwen/Qwen3-32B"
+    default_params:
+      temperature: 0
+      max_tokens: 32768
+      top_p: 1
+      reasoning: True
+
+  - name: "qwen3-32b-sft-lora"
+    provider: "gpt_oss"
+    model_id: "/storage/home/eduardosanchez/workspace/lingo_reason/train_runs/qwen_qwen3-32b_sft_lora_distilled-100_dedup_20260623_151726/merged"
+    default_params:
+      temperature: 0
+      max_tokens: 8192
+      top_p: 1
+      reasoning: True
+
+  # ---- Linguini benchmark: self-hosted frontier models (vLLM 0.23.0) ----
+  # Decoding per provided spec; model_id must match the vLLM --served-model-name.
+  - name: "gemma4-31b-it"
+    provider: "gpt_oss"
+    model_id: "gemma4-31b-it"
+    default_params:
+      temperature: 1.0
+      top_p: 0.95
+      max_tokens: 64000
+      reasoning: True
+      chat_template_kwargs:
+        enable_thinking: true
+
+  - name: "qwen3.6-27b"
+    provider: "gpt_oss"
+    model_id: "qwen3.6-27b"
+    default_params:
+      temperature: 0.6
+      top_p: 0.95
+      top_k: 20
+      max_tokens: 64000
+      reasoning: True
+
+  - name: "deepseek-r1-32b"
+    provider: "gpt_oss"
+    model_id: "deepseek-r1-32b"
+    default_params:
+      temperature: 0.6
+      top_p: 0.95
+      max_tokens: 32768
+      reasoning: True
+
+  - name: "glm-4.7-flash"
+    provider: "gpt_oss"
+    model_id: "glm-4.7-flash"
+    default_params:
+      temperature: 0.6
+      top_p: 0.95
+      top_k: 40
+      repetition_penalty: 1.05
+      max_tokens: 64000
+      reasoning: True
+      request_timeout: 10800

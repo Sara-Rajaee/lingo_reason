@@ -20,7 +20,7 @@ import torch
 torch.backends.cuda.enable_cudnn_sdp(False)
 from datasets import Dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from trl import SFTConfig, SFTTrainer, GRPOConfig, GRPOTrainer
+from trl import SFTConfig, SFTTrainer
 
 from data_generation import ReasoningDataset
 
@@ -58,6 +58,8 @@ def parse_args():
     p.add_argument("--beta", type=float, default=0.0)
     p.add_argument("--loss-type", choices=["grpo", "bnpo", "dapo"], default="dapo")
     p.add_argument("--use-vllm", action="store_true")
+    p.add_argument("--use-fsdp", action="store_true",
+                   help="Enable FSDP full_shard for large models that don't fit in single-GPU DDP")
     return p.parse_args()
 
 
@@ -226,11 +228,14 @@ def main():
     print(f"  Train: {len(train_ds)}  Eval: {len(eval_ds) if eval_ds else 0}")
 
     print(f"Loading model: {args.model}")
+    from transformers import AutoConfig
+    model_config = AutoConfig.from_pretrained(args.model, trust_remote_code=True)
+    attn_impl = "eager" if model_config.model_type in ("gpt_oss",) else "sdpa"
     model = AutoModelForCausalLM.from_pretrained(
         args.model,
         torch_dtype=torch.bfloat16,
         trust_remote_code=True,
-        attn_implementation="sdpa",
+        attn_implementation=attn_impl,
     )
     model.config.use_cache = False
 
@@ -248,6 +253,10 @@ def main():
                             "gate_proj", "up_proj", "down_proj"],
         )
     if args.trainer == "sft":
+        fsdp_kwargs = {}
+        if args.use_fsdp:
+            fsdp_kwargs["fsdp"] = "full_shard"
+            fsdp_kwargs["fsdp_config"] = {"auto_wrap_policy": "TRANSFORMER_BASED_WRAP"}
         sft_config = SFTConfig(
             output_dir=args.output_dir,
             num_train_epochs=args.epochs,
@@ -260,7 +269,7 @@ def main():
             bf16=True,
             gradient_checkpointing=True,
             gradient_checkpointing_kwargs={"use_reentrant": False},
-            max_seq_length=args.max_seq_length,
+            max_length=args.max_seq_length,
             packing=False,
             dataset_text_field="text",
             logging_steps=args.logging_steps,
@@ -270,6 +279,7 @@ def main():
             eval_steps=args.save_steps if eval_ds is not None else None,
             report_to="none",
             seed=args.seed,
+            **fsdp_kwargs,
         )
 
         trainer = SFTTrainer(
@@ -277,10 +287,11 @@ def main():
             args=sft_config,
             train_dataset=train_ds,
             eval_dataset=eval_ds,
-            tokenizer=tokenizer,
+            processing_class=tokenizer,
             peft_config=peft_config,
         )
     else:
+        from trl import GRPOConfig, GRPOTrainer
         train_config = GRPOConfig(
             output_dir=args.output_dir,
             num_train_epochs=args.epochs,

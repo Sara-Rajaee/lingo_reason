@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=256G
-#SBATCH --time=1-00:00:00
+#SBATCH --time=3-00:00:00
 #SBATCH --account=omnilingual
 #SBATCH --qos=h100_omnilingual_high
 #SBATCH --output=logs/train_%j.out
@@ -30,6 +30,10 @@ fi
 DEDUPE_FLAG=""
 if [ -n "$DEDUPE_BY_PROMPT" ] && [ "$DEDUPE_BY_PROMPT" != "0" ]; then
     DEDUPE_FLAG="--dedupe-by-prompt"
+fi
+FSDP_FLAG=""
+if [ -n "$USE_FSDP" ] && [ "$USE_FSDP" != "0" ]; then
+    FSDP_FLAG="--use-fsdp"
 fi
 
 DISTILLED_PATHS_DEFAULT=(
@@ -91,4 +95,5 @@ uv run --no-sync torchrun \
     --num-generations "$NUM_GENERATION" \
     $NO_REASONING_FLAG \
     $DEDUPE_FLAG \
+    $FSDP_FLAG \
     --output-dir "$OUT"

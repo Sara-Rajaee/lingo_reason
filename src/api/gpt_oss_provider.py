@@ -91,7 +91,26 @@ class GptOssProvider(BaseProvider):
                 max_tokens=params.get("max_tokens", 4096),
                 top_p=params.get("top_p", 1),
                 num_retries=self.max_retries,
+                timeout=params.get("request_timeout", 3600),
             )
+            # vLLM-only sampling params (top_k, min_p) are not first-class OpenAI
+            # fields; pass them through extra_body when set on the model.
+            extra_body = {}
+            if params.get("top_k") is not None:
+                extra_body["top_k"] = params["top_k"]
+            if params.get("min_p") is not None:
+                extra_body["min_p"] = params["min_p"]
+            # Anti-degeneration penalties (vLLM sampling params) for models that
+            # otherwise loop/repeat (e.g. GLM-4.7-Flash running away to the cap).
+            for _pen in ("repetition_penalty", "frequency_penalty", "presence_penalty"):
+                if params.get(_pen) is not None:
+                    extra_body[_pen] = params[_pen]
+            # Per-request chat-template controls (e.g. {"enable_thinking": true})
+            # used to turn on reasoning for models whose template defaults it off.
+            if params.get("chat_template_kwargs") is not None:
+                extra_body["chat_template_kwargs"] = params["chat_template_kwargs"]
+            if extra_body:
+                kwargs["extra_body"] = extra_body
 
             response = await acompletion(**kwargs)
             message = response.choices[0].message
